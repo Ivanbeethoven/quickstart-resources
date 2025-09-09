@@ -1,0 +1,17 @@
+[project]
+name = "kube4sagent"
+version = "0.1.0"
+description = "LangGraph based Kubernetes vulnerability strategy generator"
+authors = [{name=" AutoGen "}]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "langgraph>=0.2.0",
+  "openai>=1.106.1",
+]
+
+[project.scripts]
+kube4sagent = "kube4sagent:main"
+
+[tool.uv]
+# uv specific settings placeholder

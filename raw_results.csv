@@ -1,0 +1,995 @@
+﻿CVEID,Third-party Applications,Summary,Published Date,CVE Date,fix date,CVSS v3.x Score,Severity,成因,analysis,risk_level,,
+CVE-2017-1000056,Kubernetes,Kubernetes version 1.5.0-1.5.4 is vulnerable to a privilege escalation in the PodSecurityPolicy admission plugin resulting in the ability to make use of any existing PodSecurityPolicy object.,2017/3/21,2017-07-17T13:18:17Z,2024.3.7,9.8,CRITICAL,K8S漏洞,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体是由于PodSecurityPolicy（PSP）准入插件的权限验证逻辑不完善导致。攻击者可绕过策略限制，利用已存在的PSP对象实现权限提升，即使自身未被授权关联该策略。
+
+2. **潜在攻击场景分析**  
+   - 攻击者通过低权限账户（如普通用户或服务账户）创建或修改Pod时，利用漏洞绕过PSP的访问控制机制，关联到更高权限的PSP（如允许特权容器、访问宿主机文件系统等），从而在集群内执行恶意操作。  
+   - 例如，通过绑定未授权的PSP运行特权容器，突破容器隔离限制，获取宿主机节点控制权，横向渗透集群或窃取敏感数据。
+
+3. **推荐缓解措施**  
+   - **立即升级Kubernetes**：更新至已修复版本（如1.5.5或更高，需确认具体补丁版本）。  
+   - **临时禁用PSP**：若无法升级，可通过API Server的`--enable-admission-plugins`参数移除PodSecurityPolicy（可能降低安全性，需权衡风险）。  
+   - **严格审核现有PSP**：确保所有PSP遵循最小权限原则，删除冗余或过度宽松的策略，限制`allowedUnsafeSysctls`、`privileged`等高危配置。  
+   - **启用RBAC管控**：结合RBAC限制用户/服务账户对PSP的绑定权限，但需注意此漏洞可能绕过该机制。  
+
+4. **优先级评估**  
+   **高**。CVSS 9.8分表明漏洞危害极大，且Kubernetes作为核心基础设施，一旦被利用可能导致集群完全沦陷。建议立即修复，尤其面向多租户或暴露API Server的环境。",低危,,
+CVE-2018-0268,Cisco DNA,"A vulnerability in the container management subsystem of Cisco Digital Network Architecture (DNA) Center could allow an unauthenticated, remote attacker to bypass authentication and gain elevated privileges. This vulnerability is due to an insecure default configuration of the Kubernetes container management subsystem within DNA Center. An attacker who has the ability to access the Kubernetes service port could execute commands with elevated privileges within provisioned containers. A successful exploit could result in a complete compromise of affected containers. This vulnerability affects Cisco DNA Center Software Releases 1.1.3 and prior. Cisco Bug IDs: CSCvi47253.",2018 May 16,2018-05-17T03:29:00Z, 2018 年 4 月 5 日,10,CRITICAL,网络隔离,"1. **漏洞类型分类或成因**  
+   该漏洞属于**配置错误**，具体原因为Kubernetes容器管理子系统在Cisco DNA Center中采用了**不安全的默认配置**。默认配置可能未启用必要的认证机制或暴露了敏感服务端口，导致攻击者无需身份验证即可访问关键服务。
+
+2. **潜在攻击场景分析**  
+   - 攻击者通过扫描目标网络发现暴露的Kubernetes服务端口（如API Server默认端口6443）。  
+   - 利用默认配置的认证缺失，直接与Kubernetes API交互，部署恶意容器或修改现有容器配置。  
+   - 通过特权容器执行任意命令（如横向渗透到其他容器、窃取敏感数据、部署持久化后门）。  
+   - 最终可能导致整个DNA Center集群被控制，破坏网络管理系统的完整性和可用性。
+
+3. **推荐缓解措施**  
+   - **立即升级软件**：安装Cisco官方发布的修复版本（1.1.3之后的版本）。  
+   - **网络隔离**：限制Kubernetes服务端口的访问范围，仅允许受信任的IP或内部网络通信。  
+   - **强化Kubernetes配置**：启用RBAC（基于角色的访问控制）、TLS证书认证，禁用匿名访问。  
+   - **安全审计**：检查现有容器是否存在异常活动或未授权修改，监控Kubernetes API日志。  
+   - **最小权限原则**：确保容器运行时权限按需分配，避免使用特权（privileged）模式。
+
+4. **优先级评估**  
+   理由：CVSS 10分表明漏洞具有最高严重性，攻击者可远程无需认证即可完全控制受影响系统，且Cisco DNA Center作为网络核心管理平台，一旦被攻破将导致全局性安全风险（如配置篡改、数据泄露、服务中断）。需立即修复。",低危,,
+CVE-2018-1000400,Kubernetes,"Kubernetes CRI-O version prior to 1.9 contains a Privilege Context Switching Error (CWE-270) vulnerability in the handling of ambient capabilities that can result in containers running with elevated privileges, allowing users abilities they should not have. This attack appears to be exploitable via container execution. This vulnerability appears to have been fixed in  1.9.","五月 18, 2018; 2:29:00 下午 -0400",2018-05-18T18:29:00Z,6-May-18,8.8,HIGH,K8S漏洞,"1. **漏洞类型分类或成因**  
+   **安全逻辑缺陷**（具体为权限管理错误）。该漏洞源于CRI-O在处理容器环境中的ambient capabilities（环境能力）时未能正确进行权限上下文切换，导致容器进程保留了本应被丢弃的特权能力（如`CAP_SYS_ADMIN`等），从而违反最小权限原则。
+
+2. **潜在攻击场景分析**  
+   - **容器特权升级**：攻击者可通过创建恶意容器，利用未正确限制的ambient capabilities，使容器进程获得宿主机级别的操作权限（如挂载文件系统、修改内核参数）。  
+   - **横向渗透与逃逸**：通过高权限容器，攻击者可访问其他容器或宿主机资源，甚至突破容器隔离边界，执行代码逃逸到宿主机。  
+   - **集群控制权夺取**：若攻击者控制Kubernetes节点上的高权限容器，可能进一步攻击集群控制平面（如API Server），导致集群被完全接管。
+
+3. **推荐缓解措施**  
+   - **立即升级CRI-O**：将CRI-O升级至1.9或更高版本以应用官方补丁。  
+   - **限制容器能力**：通过Kubernetes Pod Security Policies或Pod Security Admission（PSA）强制禁用`ambient`能力集，并仅授权必要的Linux capabilities（如`drop: [""ALL""]`）。  
+   - **运行时监控**：使用Falco或Tracee等工具监控容器内异常特权操作（如`CAP_SYS_ADMIN`的使用）。  
+   - **最小化特权运行**：强制容器以非root用户运行（设置`securityContext.runAsUser`），并启用`readOnlyRootFilesystem`。
+
+4. **优先级评估**  
+   **高**。CVSS 8.8分表明此漏洞具备高攻击复杂度但低权限需求，且直接影响机密性、完整性、可用性。在容器化环境中，特权升级漏洞可能迅速演变为集群级安全事件，需优先修复。",低危,,
+CVE-2018-5256,CoreOS Tectonic,CoreOS Tectonic 1.7.x before 1.7.9-tectonic.4 and 1.8.x before 1.8.4-tectonic.3 mounts a direct proxy to the kubernetes cluster at /api/kubernetes/ which is accessible without authentication to Tectonic.,2018/5/18,2018-05-18T15:29:00Z,(2024-08-05),7.5,HIGH,内部权限失控,"1. **漏洞类型分类或成因**  
+   **配置错误/安全逻辑缺陷**。该漏洞源于CoreOS Tectonic未正确配置身份验证机制，导致未授权用户可直接通过`/api/kubernetes/`路径访问Kubernetes集群的API代理接口。
+
+2. **潜在攻击场景分析**  
+   - **未授权集群操作**：攻击者可绕过Tectonic的身份验证，直接向底层Kubernetes集群发送API请求，执行创建/删除Pod、部署恶意容器、窃取敏感数据等操作。  
+   - **权限提升与横向移动**：若集群内存在低权限服务账户，攻击者可利用此接口劫持账户权限，进一步渗透集群。  
+   - **拒绝服务（DoS）**：通过大量恶意API请求耗尽集群资源，导致服务中断。  
+   - **信息泄露**：获取集群配置、节点信息、服务详情等敏感数据，为后续攻击提供情报。
+
+3. **推荐缓解措施**  
+   - **立即升级Tectonic版本**：升级到修复版本（1.7.9-tectonic.4或1.8.4-tectonic.3），以关闭未授权访问路径。  
+   - **网络隔离与访问控制**：限制`/api/kubernetes/`端点的访问范围，通过防火墙或网络策略仅允许可信IP或内部网络访问。  
+   - **启用认证与RBAC**：确保所有Kubernetes API请求强制经过身份验证（如TLS客户端证书、令牌等），并配置基于角色的访问控制（RBAC）策略。  
+   - **审计与监控**：记录所有API请求日志，部署异常行为检测系统，及时发现未授权访问行为。
+
+4. **优先级评估**  
+   **高**。CVSS 7.5分表明此漏洞具有较高风险，且攻击门槛低（无需认证），影响范围直接关联集群控制权。若攻击者利用此漏洞，可能导致整个Kubernetes环境被接管，需立即修复。",低危,,
+CVE-2019-10165,OpenShift,OpenShift Container Platform before version 4.1.3 writes OAuth tokens in plaintext to the audit logs for the Kubernetes API server and OpenShift API server. A user with sufficient privileges could recover OAuth tokens from these audit logs and use them to access other resources.," Jun 7, 2019",2019-07-30T23:15:12Z,7-Jun-19,2.3,LOW,敏感信息泄露,"1. **漏洞类型分类或成因**  
+   该漏洞属于**敏感信息泄露**问题，具体原因为**安全逻辑缺陷**。OpenShift API服务器在审计日志中以明文记录OAuth令牌，未对敏感数据进行脱敏或加密处理，导致攻击者可通过日志恢复令牌。
+
+2. **潜在攻击场景分析**  
+   - 攻击者（如具有审计日志读取权限的内部用户或已入侵账户）可通过检索API服务器的审计日志，提取明文OAuth令牌。  
+   - 利用窃取的令牌，攻击者可伪装成合法用户或服务账户，访问集群内其他资源（如敏感API、容器镜像仓库等），甚至横向移动或提升权限。  
+   - 此漏洞尤其危险于多租户环境，若审计日志共享或权限控制不严，风险进一步扩大。
+
+3. **推荐缓解措施**  
+   - **立即升级**：将OpenShift Container Platform升级至4.1.3或更高版本，官方已修复该问题。  
+   - **审计日志审查**：检查现有审计日志，删除或加密包含OAuth令牌的历史记录。  
+   - **最小权限原则**：严格限制对审计日志的访问权限，仅允许必要角色读取。  
+   - **动态令牌策略**：启用短期有效的OAuth令牌（如通过`TokenRequest` API），减少令牌泄露后的有效时间窗口。
+
+4. **优先级评估**  
+   **中**。CVSS评分较低（2.3）因攻击需依赖特定前提（审计日志访问权限），但若环境中存在高权限用户滥用风险或审计日志暴露面较大，实际影响可能升级。建议结合环境敏感性和权限分配情况调整优先级，对存有高价值资产的环境应视为**高**优先级修复。",低危,,
+CVE-2019-11247,Kubernetes,"The Kubernetes kube-apiserver mistakenly allows access to a cluster-scoped custom resource if the request is made as if the resource were namespaced. Authorizations for the resource accessed in this manner are enforced using roles and role bindings within the namespace, meaning that a user with access only to a resource in one namespace could create, view update or delete the cluster-scoped resource (according to their namespace role privileges). Kubernetes affected versions include versions prior to 1.13.9, versions prior to 1.14.5, versions prior to 1.15.2, and versions 1.7, 1.8, 1.9, 1.10, 1.11, 1.12.",5-Aug-19,2019-08-29T01:15:11Z,1-Aug-19,8.1,HIGH,过度权限配置,"1. **漏洞类型分类或成因**  
+   该漏洞属于**访问控制缺陷（安全逻辑错误）**。其成因是kube-apiserver在处理自定义资源（Custom Resource）请求时，错误地将集群作用域（cluster-scoped）资源视为命名空间作用域（namespaced）资源进行权限验证，导致用户通过命名空间内的角色（Role）和角色绑定（RoleBinding）获得对集群级资源的未授权操作权限。
+
+2. **潜在攻击场景分析**  
+   - **横向权限提升**：攻击者若在某一命名空间中拥有普通权限（如修改资源），可通过构造恶意请求操作集群级自定义资源（如修改集群范围的CRD），从而影响整个集群的稳定性或窃取全局数据。  
+   - **资源篡改或破坏**：例如，攻击者利用命名空间内的角色权限删除或修改本应受集群角色（ClusterRole）保护的全局资源配置（如网络策略、存储类等），导致集群功能异常。  
+   - **多租户环境逃逸**：在共享集群中，恶意租户通过此漏洞突破命名空间隔离，操作其他租户或集群级资源。
+
+3. **推荐缓解措施**  
+   - **立即升级Kubernetes版本**：升级至修复版本（1.13.9+/1.14.5+/1.15.2+）。  
+   - **限制自定义资源权限**：通过RBAC严格控制ClusterRole与Role的权限分离，避免授予命名空间角色对`cluster-scoped`资源的隐式访问权。  
+   - **审计与监控**：启用Kubernetes审计日志，监控异常API请求（如对集群级资源的操作中携带命名空间参数）。  
+   - **临时规避**：若无法立即升级，可通过准入控制器（如OPA/Gatekeeper）拦截对集群级资源的命名空间作用域请求。
+
+4. **优先级评估**  
+   **高**。CVSS 8.1表明此漏洞具有高机密性、完整性破坏风险，且易被低权限用户利用。在未修复的Kubernetes集群中，攻击者可绕过关键访问控制机制，直接威胁整个集群安全。需优先修复。",低危,,
+CVE-2019-3869,Tower,"When running Tower before 3.4.3 on OpenShift or Kubernetes, application credentials are exposed to playbook job runs via environment variables. A malicious user with the ability to write playbooks could use this to gain administrative privileges.", 2019/03/13,2019-03-28T14:29:00Z,27-Mar-19,7.2,HIGH,内部权限失控,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体成因为应用程序在OpenShift/Kubernetes环境中运行时，未正确隔离敏感凭证（如API密钥、认证令牌等），错误地将高权限凭证通过环境变量传递给用户可控制的Playbook作业。此类设计缺陷使得低权限用户能间接获取本不应接触的凭证。
+
+2. **潜在攻击场景分析**  
+   - **横向权限提升**：拥有Playbook编辑权限的普通用户（如开发人员或受限账户）可通过在Playbook中插入恶意代码（例如通过`os.environ`读取环境变量），窃取管理员级凭证。  
+   - **容器逃逸攻击**：若窃取的凭证具备集群管理权限（如Kubernetes `cluster-admin`），攻击者可进一步控制整个容器集群，部署恶意Pod或篡改关键服务。  
+   - **供应链攻击**：攻击者可能将窃取的凭证注入持续集成/持续部署（CI/CD）流程，污染构建产物或部署恶意代码至生产环境。
+
+3. **推荐缓解措施**  
+   - **立即升级**：将Tower升级至3.4.3或更高版本，官方修复版本已禁用环境变量传递敏感凭证。  
+   - **最小权限原则**：限制Playbook作业容器的权限，通过Kubernetes RBAC确保其仅具备执行任务所需的最低权限。  
+   - **凭证管理强化**：使用加密的Secret存储系统（如HashiCorp Vault或Kubernetes Secrets），替代明文环境变量传递敏感信息。  
+   - **运行时监控**：部署行为分析工具（如Falco）检测异常环境变量读取操作，并设置警报机制。  
+
+4. **优先级评估**  
+   **高优先级**。CVSS 7.2（High）表明此漏洞可导致直接权限提升，且攻击复杂度低（需基础权限即可利用）。在DevOps环境中，Tower通常作为核心自动化枢纽，一旦被攻破可能引发全集群沦陷。建议48小时内实施修复。",低危,,
+CVE-2020-15257,containerd,"containerd is an industry-standard container runtime and is available as a daemon for Linux and Windows. In containerd before versions 1.3.9 and 1.4. 3, the containerd-shim API is improperly exposed to host network containers. Access controls for the shim's API socket verified that the connecting process had an effective UID of 0, but did not otherwise restrict access to the abstract Unix domain socket. This would allow malicious containers running in the same network namespace as the shim, with an effective UID of 0 but otherwise reduced privileges, to cause new processes to be run with elevated privileges. This vulnerability has been fixed in containerd 1.3.9 and 1.4.3. Users should update to these versions as soon as they are released. It should be noted that containers started with an old version of containerd-shim should be stopped and restarted, as running containers will continue to be vulnerable even after an upgrade. If you are not providing the ability for untrusted users to start containers in the same network namespace as the shim (typically the host"" network namespace  for example with docker run --net=host or hostNetwork: true in a Kubernetes pod) and run with an effective UID of 0  you are not vulnerable to this issue. If you are running containers with a vulnerable configuration  you can deny access to all abstract sockets with AppArmor by adding a line similar to deny unix addr=@**  to your policy. It is best practice to run containers with a reduced set of privileges with a non-zero UID  and with isolated namespaces. The containerd maintainers strongly advise against sharing namespaces with the host. Reducing the set of isolation mechanisms used for a container necessarily increases that container's privilege  regardless of what container runtime is used for running that container.""",1-Dec-20,2020-12-01T03:15:11Z,1-Dec-20,5.2,MEDIUM,容器运行时漏洞,"1. **漏洞类型分类或成因**  
+   该漏洞属于**访问控制缺陷**（安全逻辑缺陷）。具体原因为containerd-shim的API套接字仅验证连接进程的有效UID为0，但未对抽象Unix域套接字（Abstract Unix Domain Socket）实施其他访问限制。攻击者可通过同一网络命名空间内UID为0的容器绕过权限隔离，利用此缺陷提升特权。
+
+2. **潜在攻击场景分析**  
+   - 攻击者运行一个与containerd-shim共享主机网络命名空间的容器（例如使用`docker run --net=host`或Kubernetes中设置`hostNetwork: true`），并以有效UID 0启动容器（即使其他权限被限制）。  
+   - 通过连接到暴露的containerd-shim API套接字，攻击者可调用接口创建新进程，突破容器权限限制，实现特权提升（如执行宿主机命令、部署恶意容器等）。  
+   - 典型场景包括：共享主机网络的容器被恶意利用，或通过Kubernetes Pod配置漏洞横向渗透到宿主机。
+
+3. **推荐缓解措施**  
+   - **立即升级**到containerd 1.3.9或1.4.3及以上版本，并**重启所有运行中的容器**以彻底修复。  
+   - **禁用高风险配置**：避免将容器与主机共享网络命名空间（如非必要不使用`--net=host`或`hostNetwork: true`）。  
+   - **最小化权限**：运行容器时使用非零UID，并启用命名空间隔离（如用户/进程/网络命名空间）。  
+   - **通过AppArmor限制抽象套接字访问**：在策略中添加`deny unix addr=@**`以阻止对抽象套接字的访问。  
+   - **审计现有环境**：检查是否有容器以UID 0运行并共享主机网络命名空间，优先修复此类配置。
+
+4. **优先级评估**  
+   **高**（需结合环境判断）。  
+   - 若环境中存在共享主机网络命名空间且以UID 0运行的容器（尤其是允许非受信用户创建此类容器），此漏洞可导致**宿主机级特权提升**，风险极高。  
+   - CVSS评分5.2（中危）反映了攻击需特定配置（共享网络+UID 0），但符合条件时实际危害严重。建议受影响用户立即修复。",低危,,
+CVE-2020-1742,nmstate/kubernetes-nmstate-handler,An insecure modification vulnerability flaw was found in containers using nmstate/kubernetes-nmstate-handler. An attacker with access to the container could use this flaw to modify /etc/passwd and escalate their privileges. Versions before kubernetes-nmstate-handler-container-v2.3.0-30 are affected.,"六月 07, 2021; 4:15:08 下午 -0400",2021-06-07T20:15:08Z, 2020 年 5 月 4 日,7,HIGH,代码注入,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体原因为容器在权限管理或文件访问控制上存在不足。攻击者能够修改敏感系统文件（如`/etc/passwd`），表明容器可能以过高权限（如`root`用户）运行，或未正确限制对关键文件的写入操作。
+
+2. **潜在攻击场景分析**  
+   - 攻击者在通过其他途径（如应用漏洞、配置错误）获得容器内访问权限后，利用此漏洞修改`/etc/passwd`，添加特权用户（如UID 0）或篡改现有用户权限，从而提升自身权限。
+   - 提权成功后，攻击者可进一步控制容器内所有操作，甚至通过容器逃逸技术（如挂载宿主机目录、滥用容器运行时特性）渗透到宿主机或其他集群资源。
+
+3. **推荐缓解措施**  
+   - **立即升级**：将`kubernetes-nmstate-handler`升级至`v2.3.0-30`或更高版本。
+   - **最小化权限**：确保容器以非特权用户（非`root`）运行，并通过Kubernetes的`SecurityContext`限制权限（如设置`runAsNonRoot: true`、`readOnlyRootFilesystem: true`）。
+   - **文件访问控制**：使用`AppArmor`或`SELinux`限制容器对`/etc/passwd`等关键文件的修改。
+   - **运行时监控**：部署容器运行时安全工具（如Falco、Aqua Security）检测异常文件修改行为。
+   - **定期审计**：检查集群中所有容器配置，确保遵循最小权限原则。
+
+4. **优先级评估**  
+   **高**  
+   该漏洞允许权限提升并可能引发横向渗透，结合CVSS 7分（中高风险）及`kubernetes-nmstate-handler`在集群网络配置中的关键作用，需立即修复以阻断潜在攻击链。",低危,,
+CVE-2020-4062,Conjur OSS,"In Conjur OSS Helm Chart before 2.0.0, a recently identified critical vulnerability resulted in the installation of the Conjur Postgres database with an open port. This allows an attacker to gain full read & write access to the Conjur Postgres database, including escalating the attacker's privileges to assume full control. A malicious actor who knows the IP address and port number of the Postgres database and has access into the Kubernetes cluster where Conjur runs can gain full read & write access to the Postgres database. This enables the attacker to write  a policy that allows full access to retrieve any secret. This Helm chart is a method to install Conjur OSS into a Kubernetes environment. Hence, the systems impacted are only Conjur OSS systems that were deployed using this chart. Other deployments including Docker and the CyberArk Dynamic Access Provider (DAP) are not affected. To remediate this vulnerability, clone the latest Helm Chart and follow the upgrade instructions. If you are not able to fully remediate this vulnerability immediately, you can mitigate some of the risk by making sure Conjur OSS is deployed on an isolated Kubernetes cluster or namespace. The term isolated"" refers to: - No other workloads besides Conjur OSS and its backend database are running in that Kubernetes cluster/namespace. - Kubernetes and helm access to the cluster/namespace is limited to security administrators via Role-Based Access Control (RBAC).""",19-Jun-20,2020-06-22T16:15:11Z,19-Jun-20,9,CRITICAL,网络隔离,"1. **漏洞类型分类或成因**  
+   **配置错误**。该漏洞源于Conjur OSS Helm Chart在2.0.0之前的版本中未正确配置PostgreSQL数据库的网络访问控制，导致数据库端口（默认5432）对外开放且未限制访问权限。这种配置错误使得攻击者能够直接与数据库通信。
+
+2. **潜在攻击场景分析**  
+   - **内部横向移动**：若攻击者已通过其他漏洞或权限提升进入Kubernetes集群（例如通过受损的Pod或服务账户），可利用开放的Postgres端口直接读写数据库。  
+   - **策略篡改**：攻击者通过写入恶意数据库策略（如修改Conjur权限模型），授予自身管理员权限，从而窃取所有存储的敏感凭证（如API密钥、密码等）。  
+   - **特权升级到集群级别**：通过控制Conjur数据库，攻击者可进一步利用Conjur在集群中的权限（如Secrets管理），渗透整个Kubernetes环境。
+
+3. **推荐缓解措施**  
+   - **立即修复**：升级至Helm Chart 2.0.0及以上版本，确保Postgres数据库仅限本地或授权网络访问。  
+   - **网络隔离**：  
+     - 将Conjur OSS部署在独立且隔离的Kubernetes集群或命名空间中，禁止其他工作负载共享环境。  
+     - 使用Kubernetes Network Policies或服务网格（如Calico、Istio）限制Postgres端口的流量仅来自Conjur组件。  
+   - **强化RBAC**：通过Kubernetes RBAC严格限制对Conjur命名空间的访问，仅允许安全管理员操作。  
+   - **审计与监控**：启用数据库审计日志并监控异常连接行为，结合SIEM工具实时告警。
+
+4. **优先级评估**  
+   **高**。CVSS 9分表明漏洞危害极大，可导致完全的系统控制权丧失。结合以下因素需优先处理：  
+   - **攻击门槛低**：仅需知道IP/端口和集群内访问权限（常见于内部威胁或已渗透场景）。  
+   - **影响范围广**：Conjur作为机密管理工具，其数据库泄露会波及所有依赖的敏感数据。  
+   - **修复明确性**：官方已提供升级版本，修复成本可控。",低危,,
+CVE-2020-8559,Kubernetes,"The Kubernetes kube-apiserver in versions v1.6-v1.15, and versions prior to v1.16.13, v1.17.9 and v1.18.6 are vulnerable to an unvalidated redirect on proxied upgrade requests that could allow an attacker to escalate privileges from a node compromise to a full cluster compromise.",9-Jul-20,2020-07-22T14:15:16Z,13-Jul-20,6.8,MEDIUM,敏感信息泄露,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体为**未验证的重定向（开放重定向）**。当`kube-apiserver`代理请求到节点（如`kubelet`）时，未对目标地址进行严格验证，攻击者可构造恶意请求将流量重定向到受控服务器，导致敏感信息（如认证令牌）泄露或特权操作被劫持。
+
+2. **潜在攻击场景分析**  
+   - 攻击者已入侵集群中的某个节点（例如通过容器逃逸或恶意Pod）。
+   - 利用该漏洞构造恶意代理请求，将`kube-apiserver`的代理流量（如`exec`、`port-forward`）重定向到攻击者控制的服务器。
+   - 劫持代理流量后，获取`kube-apiserver`的认证凭据（如服务账户令牌），进而以高权限执行集群操作（如部署恶意Pod、窃取敏感数据），最终完全控制集群。
+
+3. **推荐缓解措施**  
+   - **升级版本**：将Kubernetes升级至修复版本（v1.16.13+、v1.17.9+、v1.18.6+ 或更高）。
+   - **网络隔离**：限制节点与`kube-apiserver`之间的通信，仅允许必要端口和协议。
+   - **最小化权限**：遵循最小权限原则，限制节点服务账户的权限。
+   - **监控审计**：启用Kubernetes审计日志，监控异常的代理请求和重定向行为。
+   - **临时缓解**：若无法立即升级，可禁用不必要的代理功能或通过反向代理强制校验目标地址。
+
+4. **优先级评估**  
+   **高**。该漏洞允许从节点权限提升到集群管理员权限，可能导致完全集群沦陷，尤其对多租户或暴露于不可信节点的环境风险极高。需优先修复。",低危,,
+CVE-2021-41254,kustomize-controller,"kustomize-controller is a Kubernetes operator, specialized in running continuous delivery pipelines for infrastructure and workloads defined with Kubernetes manifests and assembled with Kustomize. Users that can create Kubernetes Secrets, Service Accounts and Flux Kustomization objects, could execute commands inside the kustomize-controller container by embedding a shell script in a Kubernetes Secret. This can be used to run `kubectl` commands under the Service Account of kustomize-controller, thus allowing an authenticated Kubernetes user to gain cluster admin privileges. In affected versions multitenant environments where non-admin users have permissions to create Flux Kustomization objects are affected by this issue. This vulnerability was fixed in kustomize-controller v0.15.0 (included in flux2 v0.18.0) released on 2021-10-08. Starting with v0.15, the kustomize-controller no longer executes shell commands on the container OS and the `kubectl` binary has been removed from the container image. To prevent the creation of Kubernetes Service Accounts with `secrets` in namespaces owned by tenants, a Kubernetes validation webhook such as Gatekeeper OPA or Kyverno can be used.",12-Nov-21,2021-11-12T18:15:07Z,2021/10/8,8.8,HIGH,代码注入,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，主要成因在于kustomize-controller未对用户可控的输入（如Kubernetes Secret中的脚本内容）进行充分的安全限制。攻击者可通过构造恶意Shell脚本嵌入Secret，利用kustomize-controller容器内遗留的`kubectl`二进制文件，以高权限Service Account执行任意命令，导致权限提升。
+
+2. **潜在攻击场景分析**  
+   - **多租户环境下的权限滥用**：若攻击者拥有创建Flux Kustomization对象和Secret的权限，可在Secret中注入恶意脚本。当kustomize-controller处理该对象时，脚本会被执行，利用容器内的`kubectl`以集群管理员权限操作资源（如创建特权Pod、窃取敏感数据、横向移动等）。  
+   - **供应链攻击**：通过污染被集成的配置仓库，诱导kustomize-controller执行恶意操作。  
+   - **容器逃逸可能性**：若容器运行时或内核存在漏洞，攻击者可能进一步突破容器隔离，控制宿主机。
+
+3. **推荐缓解措施**  
+   - **立即升级**：将kustomize-controller升级至v0.15.0及以上版本（或flux2 v0.18.0+），该版本移除了容器内的`kubectl`并禁用了Shell命令执行。  
+   - **权限最小化**：通过RBAC严格限制非管理员用户创建Flux Kustomization、Secret和Service Account的权限，避免多租户环境中过度授权。  
+   - **策略强制**：部署Kubernetes验证webhook（如Gatekeeper OPA、Kyverno），禁止在租户命名空间中创建包含`secrets`字段的Service Account。  
+   - **运行时监控**：审计集群中异常`kubectl`调用或高权限Service Account的活动日志，结合SIEM工具告警。  
+
+4. **优先级评估**  
+   **高**。CVSS 8.8分表明漏洞具备高危害性，攻击者可利用低权限账户直接获取集群管理员权限，对多租户环境尤其致命。需立即修复并审查权限配置。",低危,,
+CVE-2021-43858,MinIO,"MinIO is a Kubernetes native application for cloud storage. Prior to version `RELEASE.202  2021-12-27T07-23-18Z`, a malicious client can hand-craft an HTTP API call that allows for updating policy for a user and gaining higher privileges. The patch in version `RELEASE.2021-12-27T07-23-18Z` changes the accepted request body type and removes the ability to apply policy changes through this API. There is a workaround for this vulnerability: Changing passwords can be disabled by adding an explicit `Deny` rule to disable the API for users."," Dec 28, 2021",2021-12-27T22:15:07Z," Dec 28, 2021",(not available),N/A,内部权限失控,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体成因是MinIO的HTTP API接口未对用户权限进行严格校验，导致恶意客户端可通过构造特定API请求非法修改用户策略，从而实施权限提升攻击。
+
+2. **潜在攻击场景分析**  
+   - **权限提升攻击**：攻击者可利用此漏洞将普通用户权限提升至管理员权限，进而控制存储系统、窃取或篡改数据。  
+   - **横向渗透**：在Kubernetes集群中，攻击者可能通过提升权限后访问其他关联服务或资源，扩大攻击范围。  
+   - **数据泄露与破坏**：通过高权限账户直接删除或加密存储数据（如配合勒索软件），造成业务中断。  
+
+3. **推荐缓解措施**  
+   - **立即升级MinIO版本**：将受影响的MinIO升级至`RELEASE.2021-12-27T07-23-18Z`或更高版本，以修复API校验逻辑。  
+   - **临时规避方案**：若无法立即升级，通过IAM策略添加`Deny`规则，禁用用户调用敏感API（如`UpdateUserPolicy`）。  
+   - **权限最小化原则**：严格限制用户权限，避免普通用户拥有策略管理相关权限。  
+   - **日志监控与告警**：监控异常API调用（尤其是策略修改行为），结合SIEM工具实时告警。  
+
+4. **优先级评估**  
+   **高优先级**。权限提升漏洞可直接导致系统完全沦陷，且MinIO常用于存储敏感数据，攻击影响面大。若系统暴露于公网或存在多租户场景，风险等级进一步升高。",低危,,
+CVE-2022-1902,Red Hat Advanced Cluster Securit,"A flaw was found in the Red Hat Advanced Cluster Security for Kubernetes. Notifier secrets were not properly sanitized in the GraphQL API. This flaw allows authenticated ACS users to retrieve Notifiers from the GraphQL API, revealing secrets that can escalate their privileges.",2022年5月25日,2022-09-01T21:15:09Z,31-May-22,8.8,HIGH,敏感信息泄露,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体为**敏感信息泄露**。成因是Red Hat Advanced Cluster Security (ACS)的GraphQL API在返回“Notifier”配置数据时未对敏感字段（如密码、API密钥等）进行脱敏或权限校验，导致低权限用户可通过API直接获取高权限的机密信息。
+
+2. **潜在攻击场景分析**  
+   - **内部提权攻击**：已通过基础认证的低权限用户（如普通操作员）通过构造特定GraphQL查询，获取包含高权限凭据的Notifier配置（如集成外部系统的API密钥、Webhook令牌等），利用这些凭据进一步接管ACS或其他关联系统。  
+   - **横向渗透**：攻击者利用泄露的Notifier机密（如邮件服务器密码、Sl令牌等）横向渗透到第三方服务，扩大攻击范围。  
+   - **持久化后门**：通过窃取的机密信息创建恶意Notifier，将审计日志或告警信息转发至攻击者控制的服务器，实现数据持续泄露。
+
+3. **推荐缓解措施**  
+   - **官方补丁升级**：立即应用Red Hat发布的补丁，确保GraphQL API对Notifier数据实施严格的字段级访问控制与脱敏。  
+   - **最小权限原则**：限制用户对Notifier相关API端点的访问权限，仅允许必要角色（如管理员）操作。  
+   - **审计与监控**：  
+     - 检查现有Notifier配置是否被篡改或异常访问。  
+     - 监控GraphQL API的查询日志，识别异常高频或包含敏感字段的请求。  
+   - **临时缓解**：若无法立即升级，可通过网络策略限制GraphQL API的访问范围，并禁用非必要的Notifier功能。
+
+4. **优先级评估**  
+   **高**。CVSS 8.8分表明漏洞具备高攻击复杂度但低权限要求的特性（如CVSS向量可能含CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H）。结合以下因素需优先处理：  
+   - 影响关键权限管理组件（Notifier常用于集成安全告警系统）。  
+   - 泄露的机密可能直接导致横向移动或供应链攻击。  
+   - 红帽产品广泛用于企业环境，漏洞利用可能对云原生安全架构造成连锁风险。",低危,,
+CVE-2022-21701,Istio,"Istio is an open platform to connect, manage, and secure microservices. In versions 1.12.0 and 1.12.1 Istio is vulnerable to a privilege escalation attack.",2022/1/19,2022-01-19T22:15:09Z,2022.1.18,8.8,HIGH,内部权限失控,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体为权限提升漏洞。成因可能涉及Istio控制平面（如Istiod）在处理服务身份验证或授权时存在缺陷，导致攻击者可绕过预期权限限制，获取更高特权访问集群资源。
+
+2. **潜在攻击场景分析**  
+   - 攻击者通过劫持或仿冒服务身份（如ServiceAccount），利用漏洞绕过Istio的RBAC规则，访问其他服务或敏感数据。  
+   - 攻击者可能通过恶意Sidecar代理注入，篡改Envoy配置，劫持流量或访问未授权资源。  
+   - 控制平面API未严格校验请求来源，导致攻击者通过未授权API调用修改网格配置（如VirtualService、AuthorizationPolicy），破坏服务间安全通信。
+
+3. **推荐缓解措施**  
+   - **立即升级Istio**至修复版本（如1.12.2或更高），官方通常会在漏洞披露后发布补丁。  
+   - **强化RBAC配置**：检查并限制服务账户权限，遵循最小权限原则。  
+   - **网络隔离**：使用Kubernetes NetworkPolicy或防火墙规则限制对Istio控制平面（如Istiod）的访问。  
+   - **启用严格mTLS模式**：确保服务间通信强制双向TLS加密，防止身份伪造。  
+   - **审计现有配置**：检查AuthorizationPolicy和PeerAuthentication资源，确保无过度宽松规则。  
+
+4. **优先级评估**  
+   **高**  
+   - CVSS 8.8（高危）表明漏洞易被利用且影响深远，可能导致集群内横向移动或数据泄露。  
+   - Istio作为服务网格核心组件，控制平面漏洞直接影响整个微服务架构的安全性，需优先修复。",低危,,
+CVE-2022-23652,capsule-proxy,capsule-proxy is a reverse proxy for Capsule Operator which provides multi-tenancy in Kubernetes. In versions prior to 0.2.1 an attacker with a proper authentication mechanism may use a malicious `Connection` header to start a privilege escalation attack.,2022/2/19,2022-02-22T20:15:07Z,2022.2.21,8.8,HIGH,内部权限失控,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体成因为对HTTP请求头（`Connection`头）的输入验证不严格。攻击者通过构造恶意`Connection`头绕过Capsule-proxy的认证或授权逻辑，导致权限提升。
+
+2. **潜在攻击场景分析**  
+   - 攻击者在通过初始认证后，向Capsule-proxy发送包含恶意`Connection`头的请求，可能篡改代理行为（如绕过租户隔离策略）。  
+   - 漏洞可能允许攻击者访问其他租户的Kubernetes资源（如Pod、Service），甚至执行集群级操作（如创建/删除命名空间），破坏多租户隔离性。  
+   - 结合其他漏洞（如容器逃逸），可能进一步控制整个集群。
+
+3. **推荐缓解措施**  
+   - **立即升级**到Capsule-proxy 0.2.1或更高版本。  
+   - **强化输入验证**：严格校验`Connection`头内容，拒绝非法字段（如非标准协议指令）。  
+   - **实施最小权限原则**：确保Capsule-proxy仅拥有必要的Kubernetes RBAC权限。  
+   - **网络层防护**：通过WAF（Web应用防火墙）拦截异常HTTP头请求。  
+   - **审计与监控**：记录并分析`Connection`头异常的请求，实时告警可疑行为。
+
+4. **优先级评估**  
+   **高**。CVSS 8.8（高危）表明攻击复杂度低、影响范围广，且权限提升可直接破坏Kubernetes多租户核心安全目标。需优先修复，尤其针对生产环境。",低危,,
+CVE-2022-24730,Argo CD ,"Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes. Argo CD starting with version 1.3.0 but before versions 2.1.11, 2.2.6, and 2.3.0 is vulnerable to a path traversal bug, compounded by an improper access control bug, allowing a malicious user with read-only repository access to leak sensitive files from Argo CD's repo-server. A malicious Argo CD user who has been granted `get` access for a repository containing a Helm chart can craft an API request to the `/api  /vuln/detail/CVE-2022-24730","三月 23, 2022; 5:15:08 下午 -0400",2022-03-23T21:15:08Z,6-Mar-22,6.5,MEDIUM,敏感信息泄露,"1. **漏洞类型分类或成因**  
+   该漏洞是**路径遍历（Path Traversal）**与**访问控制缺陷（Improper Access Control）**的结合。攻击者通过构造恶意API请求，利用路径遍历绕过文件访问限制，同时系统未正确验证用户权限，导致敏感文件泄露。
+
+2. **潜在攻击场景分析**  
+   - 攻击者需具备对某Helm仓库的`get`权限（仅需只读访问）。  
+   - 通过构造包含`../`等路径遍历字符的API请求（如`/api/v1/applications/{app}/resource`或其他相关接口），访问Argo CD `repo-server`上的敏感文件（如`/etc/passwd`、Kubernetes Secrets挂载文件等）。  
+   - 泄露的敏感信息可能被用于横向渗透、权限提升或直接破坏集群安全。
+
+3. **推荐缓解措施**  
+   - **立即升级**至修复版本（Argo CD 2.1.11、2.2.6、2.3.0或更高）。  
+   - **最小化权限原则**：限制用户仅能访问必要的仓库，避免授予不必要的`get`权限。  
+   - **输入验证强化**：对用户提交的路径参数进行规范化检查，过滤`../`等特殊字符。  
+   - **网络隔离**：限制`repo-server`的敏感文件访问权限，确保其运行环境与其他敏感系统隔离。
+
+4. **优先级评估**  
+   **高**  
+   - 漏洞允许低权限用户泄露敏感数据，可能直接导致系统沦陷。  
+   - Argo CD作为核心CI/CD工具，通常管理生产环境凭据，风险影响面大。  
+   - 公开漏洞详情可能加速攻击链构造，需优先修复。",低危,,
+CVE-2022-24768,Argo CD,"Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes. All unpatched versions of Argo CD starting with 1.0.0 are vulnerable to an improper access control bug, allowing a malicious user to potentially escalate their privileges to admin-level.",2022/3/23,2022-03-23T22:15:13Z,2022/3/23,8.8,HIGH,内部权限失控,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体为**不当的访问控制（Improper Access Control）**。其成因是Argo CD的权限校验机制存在漏洞，未能正确限制低权限用户的操作范围，导致攻击者可绕过权限检查并获取管理员特权。
+
+2. **潜在攻击场景分析**  
+   - **权限提升攻击**：已拥有普通用户权限的攻击者（如只读用户或项目成员）可通过构造恶意请求或滥用API接口，直接访问管理员专属功能（如全局配置修改、用户权限管理）。  
+   - **横向渗透风险**：攻击者获取管理员权限后，可能篡改Kubernetes集群配置、窃取敏感数据，甚至部署恶意容器或横向渗透至其他系统。  
+   - **自动化攻击**：结合CI/CD流程的自动化特性，攻击者可能通过GitOps管道注入恶意代码并强制同步至生产环境。
+
+3. **推荐缓解措施**  
+   - **立即升级版本**：应用Argo CD官方发布的补丁版本（如1.8.6+或后续修复版本）。  
+   - **最小权限原则**：严格限制用户权限，避免普通用户拥有不必要的API访问权限，通过RBAC（基于角色的访问控制）细化权限分配。  
+   - **审计与监控**：启用Argo CD审计日志并实时监控异常管理操作（如非管理员用户尝试修改全局配置）。  
+   - **网络隔离**：在集群内部对Argo CD实例实施网络策略隔离，限制其管理端口的外部暴露。  
+
+4. **优先级评估**  
+   **高**。CVSS 8.8分表明该漏洞具备高可利用性和严重危害性，且权限提升漏洞可直接导致系统完全沦陷。需立即修复以避免供应链攻击或内部威胁。",低危,,
+CVE-2022-24817,Flux2,"Flux2 is an open and extensible continuous delivery solution for Kubernetes. Flux2 versions between 0.1.0 and 0.29.0, helm-controller 0.1.0 to v0.19.0, and kustomize-controller 0.1.0 to v0.23.0 are vulnerable to Code Injection via malicious Kubeconfig.",2022/3/4,2022-05-06T00:15:07Z,2022.4.20,9.9,CRITICAL,代码注入,"1. **漏洞类型分类或成因**  
+   该漏洞属于**代码注入漏洞**（Code Injection），具体成因是Flux2相关组件在处理用户提供的Kubeconfig文件时，未对输入内容进行充分的验证和过滤。攻击者可通过构造恶意的Kubeconfig文件注入任意代码，导致在目标系统中执行非授权操作。
+
+2. **潜在攻击场景分析**  
+   - 攻击者可能通过篡改Kubeconfig文件（例如在Git仓库中提交恶意配置），当Flux2自动同步配置时触发漏洞，从而在Kubernetes集群中执行任意命令。  
+   - 恶意内部人员或供应链攻击者可能直接向目标系统注入恶意Kubeconfig，获取集群控制权，进而窃取敏感数据、部署恶意容器或破坏集群资源。  
+   - 结合CI/CD流程自动化特性，攻击可能导致整个交付管道被劫持，扩大攻击影响范围。
+
+3. **推荐缓解措施**  
+   - **立即升级组件**：将Flux2升级至0.29.0以上版本，helm-controller升级至v0.19.0以上，kustomize-controller升级至v0.23.0以上。  
+   - **限制Kubeconfig来源**：仅从受信任的仓库或来源获取Kubeconfig文件，并启用签名验证机制（如Cosign）。  
+   - **最小化权限原则**：为Flux2控制器配置最小必需的RBAC权限，降低漏洞被利用后的横向移动风险。  
+   - **网络隔离与监控**：对Flux2控制器进行网络策略隔离，并监控异常API请求或可疑命令执行行为。
+
+4. **优先级评估**  
+   **高**  
+   CVSS 9.9表明此漏洞具有极高的机密性、完整性和可用性影响，且无需复杂条件即可远程利用。由于Flux2通常直接操作Kubernetes集群，漏洞利用可能导致集群完全沦陷，需立即修复。",低危,,
+CVE-2022-24877,Flux,Flux is an open and extensible continuous delivery solution for Kubernetes. Path Traversal in the kustomize-controller via a malicious `kustomization.yaml` allows an attacker to expose sensitive data from the controller's pod filesystem.,2022/5/4,2022-05-06T01:15:09Z,2022.4.20,8.8,HIGH,代码注入,"1. **漏洞类型分类或成因**  
+   该漏洞属于**路径遍历（Path Traversal）**，成因是kustomize-controller在处理用户提供的`kustomization.yaml`文件时，未对文件中的路径参数进行充分验证和限制。攻击者可通过构造恶意路径（如使用`../`等字符）绕过安全限制，访问控制器Pod文件系统外的敏感文件。
+
+2. **潜在攻击场景分析**  
+   - 攻击者可能向Flux仓库提交包含恶意路径的`kustomization.yaml`文件，例如通过指定`resources`或`patches`字段中的路径为`/etc/kubernetes/service-account-token`或`/var/run/secrets`等敏感位置。  
+   - 当kustomize-controller处理该文件时，会尝试读取并应用这些路径对应的资源，导致敏感信息（如服务账户令牌、Kubernetes Secret等）被泄露到攻击者控制的输出中（例如构建日志或外部存储）。  
+   - 泄露的凭据可能被用于横向移动、权限提升或直接攻击Kubernetes集群。
+
+3. **推荐缓解措施**  
+   - **立即升级Flux**：应用官方修复补丁，确保kustomize-controller对路径参数进行严格校验（如限制路径范围、过滤`../`等特殊字符）。  
+   - **输入验证与沙箱隔离**：在自定义资源（如Kustomization）处理逻辑中，强制限制文件访问范围为预定义的合法目录，禁止跨目录操作。  
+   - **最小权限原则**：运行kustomize-controller的Pod应配置为仅具备必要文件系统的只读权限，并通过SecurityContext限制容器能力（如禁止特权模式）。  
+   - **审计与监控**：监控集群中异常的文件访问行为（如读取`/etc/kubernetes`或`/var/run/secrets`），并对用户提交的Kustomization配置进行代码审查。
+
+4. **优先级评估**  
+   **高**。CVSS 8.8分表明此漏洞具有高机密性影响（C:H）和高攻击复杂度（需构造恶意配置但无需特殊权限）。由于Flux在持续交付流程中的核心作用，成功利用该漏洞可直接危及整个集群的安全，需优先修复。",低危,,
+CVE-2022-29165,Argo CD,"Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes. A critical vulnerability has been discovered in Argo CD starting with version 1.4.0 and prior to versions 2.1.15, 2.2.9, and 2.3.4 which would allow unauthenticated users to impersonate as any Argo CD user or role, including the `admin` user, by sending a specifically crafted JSON Web Token (JWT) along with the request. In order for this vulnerability to be exploited, anonymous access to the Argo CD instance must have been enabled. In a default Argo CD installation, anonymous access is disabled. The vulnerability can be exploited to impersonate as any user or role, including the built-in `admin` account regardless of whether it is enabled or disabled. Also, the attacker does not need an account on the Argo CD instance in order to exploit this. If anonymous access to the instance is enabled, an attacker can escalate their privileges, effectively allowing them to gain the same privileges on the cluster as the Argo CD instance, which is cluster admin in a default installation. This will allow the attacker to create, manipulate and delete any resource on the cluster. They may also exfiltrate data by deploying malicious workloads with elevated privileges, thus bypassing any redaction of sensitive data otherwise enforced by the Argo CD API. A patch for this vulnerability has been released in Argo CD versions 2.3.4, 2.2.9, and 2.1.15. As a workaround, one may disable anonymous access, but upgrading to a patched version is preferable.",18-May-22,2022-05-20T15:15:10Z,18-May-22,10,CRITICAL,内部权限失控,"1. **漏洞类型分类或成因**  
+   该漏洞属于**身份验证绕过**与**JWT安全逻辑缺陷**。其成因是Argo CD未能正确验证JSON Web Token（JWT）的签名或权限声明，导致攻击者可构造恶意JWT绕过身份验证流程，直接模拟任意用户或角色（包括`admin`）。漏洞触发的前提是匿名访问功能被启用，而默认配置中此功能关闭。
+
+2. **潜在攻击场景分析**  
+   - 攻击者发现目标Argo CD实例启用了匿名访问（非默认配置），构造包含伪造用户/角色声明（如`admin`）的JWT，直接发送至Argo CD API。  
+   - 利用漏洞后，攻击者获得集群管理员权限（默认安装下等同于Kubernetes集群管理员），可执行任意资源操作（如部署恶意Pod、窃取敏感数据、删除关键服务），甚至通过恶意工作负载绕过敏感数据脱敏策略。  
+   - 由于无需有效账户，攻击门槛极低，仅依赖匿名访问配置状态。
+
+3. **推荐缓解措施**  
+   - **立即升级**至已修复版本（Argo CD 2.3.4、2.2.9或2.1.15）。  
+   - **禁用匿名访问**（若因业务需求无法升级）：通过Argo CD配置将`users.anonymous.enabled`设为`false`。  
+   - **审计配置与日志**：检查现有实例是否误启匿名访问，并监控异常API请求（如来源IP、高权限操作）。  
+   - **最小化权限原则**：确保Argo CD服务账户权限按需分配，非必要不授予集群管理员角色。
+
+4. **优先级评估**  
+   **高**。CVSS 10分表明漏洞危害极大，可导致完全集群接管。尽管默认配置下匿名访问关闭，但一旦启用或配置错误，风险立即达到顶峰。建议所有受影响版本用户优先修复。",低危,,
+CVE-2022-29171,Sourcegraph,"Sourcegraph is a fast and featureful code search and navigation engine. Versions before 3.38.0 are vulnerable to Remote Code Execution in the gitserver service. The Gitolite code host integration with Phabricator allows Sourcegraph site admins to specify a `callsignCommand`, which is used to obtain the Phabricator metadata for a Gitolite repository. An administrator who is able to edit or add a Gitolite code host and has administrative access to Sourcegraph's bundled Grafana instance can change this command arbitrarily and run it remotely. This grants direct access to the infrastructure underlying the Sourcegraph installation. The attack requires: site-admin privileges on the instance of Sourcegraph, Administrative privileges on the bundled Grafana monitoring instance, Knowledge of the gitserver IP address or DNS name (if running in Kubernetes). This can be found through Grafana. The issue is patched in version 3.38.0. You may disable Gitolite code hosts. We still highly encourage upgrading regardless of workarounds.",4-May-22,2022-05-06T00:15:08Z,19-Mar-22,7.2,HIGH,代码注入,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体原因为Gitolite集成中允许管理员自定义`callsignCommand`命令且未对其执行严格的权限隔离或输入验证。由于缺乏对命令修改的访问控制，具有双重管理权限（Sourcegraph和Grafana）的攻击者可注入任意命令，导致远程代码执行（RCE）。
+
+2. **潜在攻击场景分析**  
+   - 内部威胁或权限滥用：已获取Sourcegraph站点管理员和Grafana管理权限的攻击者（如恶意内部人员或遭窃凭据）可通过修改`callsignCommand`，注入恶意命令（如反弹Shell、数据窃取脚本等）。  
+   - 横向渗透：攻击者利用Grafana获取gitserver的IP/DNS信息后，通过RCE进一步渗透底层基础设施（如Kubernetes集群）。  
+   - 供应链攻击：若攻击者篡改代码仓库元数据，可能影响依赖Sourcegraph的开发或部署流程。
+
+3. **推荐缓解措施**  
+   - **立即升级**至Sourcegraph 3.38.0或更高版本。  
+   - **临时缓解**：禁用Gitolite代码主机集成（若无需此功能）。  
+   - **权限最小化**：分离Sourcegraph和Grafana的管理权限，避免单一账户拥有双重权限。  
+   - **监控与审计**：记录并监控所有代码主机配置变更行为，尤其是`callsignCommand`的修改。  
+   - **网络隔离**：限制Grafana实例的访问范围，避免其暴露于非必要网络。
+
+4. **优先级评估**  
+   **高**。尽管攻击需多权限组合，但一旦成功可直接控制基础设施，CVSS 7.2（较高风险）且存在内部威胁场景。建议优先修复并实施权限隔离。",低危,,Remote Code Execution in gitserver · Advisory · sourcegraph/sourcegraph-public-snapshot
+CVE-2022-29179,Cilium,"Cilium is open source software for providing and securing network connectivity and loadbalancing between application workloads. Prior to versions 1.9.16, 1.10.11, and 1.11.15, if an attacker is able to perform a container escape of a container running as root on a host where Cilium is installed, the attacker can escalate privileges to cluster admin by using Cilium's Kubernetes service account. The problem has been fixed and the patch is available in versions 1.9.16, 1.10.11, and 1.11.5. There are no known workarounds available.",17-May-22,2022-05-20T19:15:08Z,17-May-22,8.2,HIGH,过度权限配置,"1. **漏洞类型分类或成因**  
+   该漏洞属于**权限配置错误**和**安全逻辑缺陷**。根本原因是Cilium的Kubernetes服务账户（Service Account）被赋予了过高的权限（如`cluster-admin`角色），导致攻击者通过容器逃逸后，可利用该服务账户直接提升至集群管理员权限。
+
+2. **潜在攻击场景分析**  
+   - 攻击者首先通过漏洞（如容器运行时缺陷、内核漏洞）从容器中逃逸到宿主机，前提是该容器以root权限运行且未有效隔离。  
+   - 逃逸后，攻击者访问宿主机上Cilium组件关联的Kubernetes服务账户令牌（Service Account Token）。  
+   - 利用该令牌，攻击者直接与Kubernetes API Server交互，执行集群管理员操作（如创建/删除资源、部署恶意Pod、窃取敏感数据）。  
+   - 最终导致整个Kubernetes集群被完全控制，甚至横向渗透到其他节点或服务。
+
+3. **推荐缓解措施**  
+   - **立即升级Cilium**至已修复版本（1.9.16、1.10.11、1.11.5或更高）。  
+   - **遵循最小权限原则**：检查并限制Cilium服务账户的RBAC权限，仅授予其必需的操作权限（如删除`cluster-admin`绑定）。  
+   - **禁用容器以root权限运行**：通过Pod Security Policies或Kubernetes Pod Security Admission强制容器以非特权用户运行。  
+   - **强化容器隔离**：启用Seccomp、AppArmor/SELinux等安全策略，限制容器逃逸的可能性。  
+   - **监控异常活动**：审计Kubernetes API Server日志，检测未授权的管理员操作，并设置告警机制。
+
+4. **优先级评估**  
+   **高**。CVSS 8.2分表明漏洞危害性极高，且攻击路径在云原生环境中具有现实可行性（容器逃逸+权限提升）。成功利用可导致集群完全沦陷，影响业务机密性、完整性和可用性。需立即修复。",低危,"CVE-2022-29179 是 Cilium 的一个权限管理漏洞，其具体攻击原理与 Cilium 在 Kubernetes 集群中的权限配置及容器逃逸相关，以下是详细介绍：
+攻击前提：攻击者需要先实现容器逃逸。即在安装了 Cilium 的主机上，从以 root 身份运行的容器中逃逸出来，获得宿主机的相关权限。这通常可通过利用容器的配置漏洞、内核漏洞或相关程序漏洞来实现。
+利用 Cilium 服务账户权限：Cilium 的 Agent 以 DaemonSet 形式部署，在较早版本中内置的服务账户拥有集群内的delete pods权限和update nodes/status权限，Operator 以 Deployment 形式部署，其内置的服务账户拥有集群内的list secrets权限。攻击者逃逸到宿主机后，可获取 Agent 的服务账户。
+转移 Cilium Operator：攻击者利用 Agent 服务账户的update nodes/status权限，将集群中其他所有节点的PodCapacity置为 0，再利用delete pods权限将 Operator 删除。由于 Deployment 的特性，Kubernetes API Server 会重新创建 Operator 副本，因其他节点PodCapacity为 0，新副本会被部署在攻击者控制的节点上。
+窃取凭证：Operator 被转移到攻击者控制的节点后，攻击者获取 Operator 的服务账户，利用其list secrets权限，获取集群中clusterrole - aggregation - controller（CRAC）的ca.crt和 secret 值。clusterrole - aggregation - controller拥有 “escalate” 权限，可升级角色或集群角色的权限。
+权限升级：攻击者凭借获取到的 CRAC 相关凭证，利用 “escalate” 权限，将自身权限升级为集群管理员，从而实现对整个 Kubernetes 集群的控制。",
+CVE-2022-31102,Argo CD,"Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes. Argo CD starting with 2.3.0 and prior to 2.3.6 and 2.4.5 is vulnerable to a cross-site scripting (XSS) bug which could allow an attacker to inject arbitrary JavaScript in the `/auth/callback` page in a victim's browser. This vulnerability only affects Argo CD instances which have single sign on (SSO) enabled. The exploit also assumes the attacker has 1) access to the API server's encryption key, 2) a method to add a cookie to the victim's browser, and 3) the ability to convince the victim to visit a malicious `/auth/callback` link. The vulnerability is classified as low severity because access to the API server's encryption key already grants a high level of access. Exploiting the XSS would allow the attacker to impersonate the victim, but would not grant any privileges which the attacker could not otherwise gain using the encryption key. A patch for this vulnerability has been released in the following Argo CD versions 2.4.5 and 2.3.6. There is currently no known workaround.",13-Jul-22,2022-07-12T22:15:08Z,13-Jul-22,6.1,MEDIUM,代码注入,"1. **漏洞类型分类或成因**  
+   该漏洞属于**跨站脚本攻击（XSS）**，具体成因是Argo CD的`/auth/callback`页面未对用户输入进行有效的过滤或转义，导致攻击者可通过构造恶意请求注入任意JavaScript代码。漏洞触发需要启用了单点登录（SSO）的Argo CD实例，且攻击者需具备API服务器的加密密钥访问权限。
+
+2. **潜在攻击场景分析**  
+   - 攻击者获取API服务器的加密密钥（例如通过内部渗透或权限滥用），并利用该密钥生成恶意Payload。  
+   - 攻击者通过某种方式（如中间人攻击、恶意代理或诱导用户访问特定页面）向受害者浏览器植入精心构造的Cookie。  
+   - 诱骗受害者访问包含恶意JavaScript的`/auth/callback`链接（例如通过钓鱼邮件或社交工程）。  
+   - 受害者访问链接后，恶意脚本在浏览器中执行，攻击者可窃取会话令牌或其他敏感信息，进而冒充受害者身份。  
+   - 由于攻击者已持有加密密钥，此漏洞更多用于辅助攻击（如隐蔽横向移动），而非直接权限提升。
+
+3. **推荐缓解措施**  
+   - **立即升级**到已修复的版本（Argo CD 2.3.6 或 2.4.5）。  
+   - **限制加密密钥的访问权限**，仅允许必要的最小权限主体访问，并定期轮换密钥。  
+   - **强化SSO配置监控**，例如记录异常认证请求或回调URL的访问行为。  
+   - **用户安全意识培训**，避免点击不可信的链接。  
+
+4. **优先级评估**  
+   **低**。原因如下：  
+   - 攻击前提苛刻：需同时满足获取加密密钥、植入Cookie和诱导用户点击三个条件。  
+   - 加密密钥泄露本身已赋予攻击者极高权限，XSS漏洞未提供额外特权。  
+   - 漏洞影响范围有限，仅影响启用了SSO的实例。  
+   - 若加密密钥已泄露，攻击者可直接操作集群，无需依赖XSS。  
+   **建议**：在常规补丁周期内修复即可，但需优先确保加密密钥的安全性。",低危,,
+CVE-2022-37968,Azure Arc-enabled Kubernetes clusters,"Microsoft has identified a vulnerability affecting the cluster connect feature of Azure Arc-enabled Kubernetes clusters. This vulnerability could allow an unauthenticated user to elevate their privileges and potentially gain administrative control over the Kubernetes cluster. Additionally, because Azure Stack Edge allows customers to deploy Kubernetes workloads on their devices via Azure Arc, Azure Stack Edge devices are also vulnerable to this vulnerability.",2022/10/11,2022-10-11T19:15:12Z,2022/10/11,10,CRITICAL,内部权限失控,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体成因可能涉及Azure Arc-enabled Kubernetes集群连接功能中的**身份验证与访问控制机制缺失**。攻击者可通过未正确实施身份验证的接口或绕过权限验证流程，实现未授权访问并提升至管理员权限。
+
+2. **潜在攻击场景分析**  
+   - **横向权限提升**：未经验证的外部攻击者通过暴露的集群连接接口（如API Server）发送恶意请求，直接获取集群管理员权限。  
+   - **供应链攻击**：攻击者通过控制低权限服务账户或容器，利用漏洞横向移动至集群管理平面，接管整个Kubernetes环境。  
+   - **Azure Stack Edge设备渗透**：攻击者利用物理或网络接入的Azure Stack Edge设备，通过同一漏洞劫持其托管的Kubernetes工作负载，进一步入侵本地企业网络。  
+
+3. **推荐缓解措施**  
+   - **立即应用官方补丁**：微软应已发布针对此漏洞的安全更新，需优先修复所有受影响集群及Azure Stack Edge设备。  
+   - **最小化网络暴露**：限制集群管理接口（如API Server）的公共访问，仅允许受信IP或私有网络通信。  
+   - **强化身份验证机制**：启用多因素认证（MFA）及基于角色的访问控制（RBAC），确保所有集群操作需经过严格鉴权。  
+   - **日志监控与入侵检测**：实时审计Kubernetes审计日志（Audit Logs），监控异常特权操作（如未授权的`cluster-admin`角色绑定）。  
+
+4. **优先级评估**  
+   **高**  
+   - CVSS 10.0分表明漏洞无需任何前置条件即可被远程利用，且能直接导致系统完全沦陷。  
+   - 影响范围覆盖云端和边缘计算环境（Azure Arc及Azure Stack Edge），攻击面广泛。  
+   - 提权至Kubernetes管理员权限可能引发数据泄露、服务中断、恶意代码植入等灾难性后果。",低危,,
+CVE-2022-46167,Capsule,"Capsule is a multi-tenancy and policy-based framework for Kubernetes. Prior to version 0.1.3, a ServiceAccount deployed in a Tenant Namespace, when granted with `PATCH` capabilities on its own Namespace, is able to edit it and remove the Owner Reference.",2022/12/2,2022-12-02T19:15:11Z,2022/12/2,8.8,HIGH,过度权限配置,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**和**权限配置错误**的结合。具体原因是Capsule未正确实施对租户命名空间（Tenant Namespace）的访问控制策略，允许具有`PATCH`权限的租户ServiceAccount通过修改命名空间的元数据（如删除Owner Reference）绕过多租户隔离机制。
+
+2. **潜在攻击场景分析**  
+   - 攻击者（如恶意租户）可利用其ServiceAccount的`PATCH`权限，移除其命名空间的Owner Reference，从而解除Capsule对该命名空间的管理控制。  
+   - 脱离管控后，攻击者可能突破资源配额限制、绕过网络策略隔离，或创建原本被策略禁止的资源（如访问其他租户的命名空间）。  
+   - 此漏洞可能破坏Kubernetes多租户集群的核心隔离性，导致数据泄露、服务干扰或横向渗透。
+
+3. **推荐缓解措施**  
+   - **立即升级**到Capsule 0.1.3或更高版本，官方已修复此漏洞。  
+   - **最小权限原则**：通过RBAC严格限制租户ServiceAccount对命名空间资源的修改权限，尤其是`PATCH`操作。  
+   - **审计与监控**：检查现有集群中是否存在命名空间Owner Reference被篡改的痕迹，并部署准入控制（如OPA/Gatekeeper）防止类似修改。  
+   - **强化策略**：使用Capsule的策略引擎显式锁定命名空间的元数据字段（如`metadata.ownerReferences`），禁止租户修改。
+
+4. **优先级评估**  
+   **高**。CVSS 8.8表明此漏洞对机密性、完整性、可用性均构成重大威胁，尤其针对多租户Kubernetes环境（核心隔离失效）。需立即修复以避免集群级安全风险。",低危,,
+CVE-2023-22482,Argo CD,"Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes. Versions of Argo CD starting with v1.8.2 and prior to 2.3.13, 2.4.19, 2.5.6, and 2.6.0-rc-3  are vulnerable to an improper authorization bug causing the API to accept certain invalid tokens. OIDC providers include an `aud` (audience) claim in signed tokens. The value of that claim specifies the intended audience(s) of the token (i.e. the service or services which are meant to accept the token). Argo CD _does_ validate that the token was signed by Argo CD's configured OIDC provider. But Argo CD _does not_ validate the audience claim, so it will accept tokens that are not intended for Argo CD. If Argo CD's configured OIDC provider also serves other audiences (for example, a file storage service), then Argo CD will accept a token intended for one of those other audiences. Argo CD will grant the user privileges based on the token's `groups` claim, even though those groups were not intended to be used by Argo CD. This bug also increases the impact of a stolen token. If an attacker steals a valid token for a different audience, they can use it to access Argo CD. A patch for this vulnerability has been released in versions 2.6.0-rc3, 2.5.6, 2.4.19, and 2.3.13. There are no workarounds.",2023/1/26,2023-01-26T21:18:12Z,2023-01-25T18:35:37Z,8.8,HIGH,内部权限失控,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体为**授权验证不完善**。Argo CD未正确验证OIDC令牌的`aud`（受众）声明，导致其接受本不适用于Argo CD的令牌。虽然令牌的签名合法性被检查，但缺乏对受众的验证，使得非预期用途的令牌被错误授权。
+
+2. **潜在攻击场景分析**  
+   - **跨服务令牌滥用**：若攻击者获取同一OIDC提供商签发的其他服务（如存储服务）的令牌，可直接利用该令牌访问Argo CD，并根据令牌中的`groups`声明获得权限。  
+   - **权限提升与数据泄露**：通过窃取的令牌（即使原本用于低权限服务），攻击者可能获得Argo CD的管理权限，进而操控Kubernetes集群资源或窃取敏感数据。  
+   - **横向渗透**：若企业内部OIDC提供商为多个系统服务，此漏洞可成为攻击链中的跳板，扩大攻击影响范围。
+
+3. **推荐缓解措施**  
+   - **立即升级到修补版本**：应用官方补丁（Argo CD v2.6.0-rc3、v2.5.6、v2.4.19或v2.3.13）。  
+   - **强制OIDC配置验证**：确保OIDC提供商为Argo CD分配唯一客户端ID，并严格限制令牌的`aud`声明范围。  
+   - **监控与日志审计**：加强API访问日志监控，重点关注异常来源的令牌使用行为。  
+
+4. **优先级评估**  
+   **高**。CVSS 8.8分表明该漏洞具有高严重性，且Argo CD作为核心交付工具，其权限泄露可能导致整个Kubernetes环境被接管。需优先修复。",低危,,
+CVE-2023-2250,Open Cluster Management,A flaw was found in the Open Cluster Management (OCM) when a user have access to the worker nodes which has the cluster-manager-registration-controller or cluster-manager deployments.,2023/4/24,2023-04-24T21:15:09Z,2023/3/11,6.7,MEDIUM,过度权限配置,"1. **漏洞类型分类或成因**  
+   该漏洞属于**访问控制缺陷**，具体成因是Open Cluster Management (OCM) 未对具有工作节点访问权限的用户实施严格的权限隔离。当用户能够直接访问运行 `cluster-manager-registration-controller` 或 `cluster-manager` 组件的节点时，可能通过滥用这些高权限组件的功能执行未授权操作。
+
+2. **潜在攻击场景分析**  
+   - **横向权限提升**：攻击者通过已攻陷的工作节点，利用上述组件的API或服务账户权限，横向移动到集群管理平面，篡改集群配置或部署恶意工作负载。  
+   - **敏感信息泄露**：通过访问高权限组件的日志或配置文件，攻击者可窃取集群凭证、密钥或其他敏感数据。  
+   - **拒绝服务（DoS）**：滥用管理组件接口，删除或修改关键资源，导致集群功能中断。
+
+3. **推荐缓解措施**  
+   - **最小权限原则**：严格限制对工作节点的访问权限，确保仅授权管理员可操作 `cluster-manager-registration-controller` 和 `cluster-manager` 组件。  
+   - **更新与补丁**：升级至官方修复版本，并持续关注OCM安全更新。  
+   - **网络隔离**：通过防火墙或Kubernetes网络策略，限制工作节点与管理平面之间的非必要通信。  
+   - **审计与监控**：启用集群审计日志，监控对关键组件的异常访问或操作行为。  
+   - **服务账户权限加固**：确保相关Deployment使用的服务账户仅具备必要权限，避免过度授权。
+
+4. **优先级评估 (高/中/低)**  
+   **高**  
+   - 漏洞CVSS评分为6.7（中危），但若攻击者已具备工作节点访问权限（如通过其他漏洞或内部威胁），可能快速升级为集群级风险。  
+   - 直接影响集群管理组件的完整性和机密性，需优先修复。",低危,,
+CVE-2023-22645,SUSE kubewarden,An Improper Privilege Management vulnerability in SUSE kubewarden allows attackers to read arbitrary secrets if they get access to the ServiceAccount kubewarden-controller This issue affects: SUSE kubewarden kubewarden-controller versions prior to 1.6.0.,04/19/2023,04/19/2023,04/17/2023,8.8,HIGH,过度权限配置,"1. **漏洞类型分类或成因**  
+   - **权限管理不当（Improper Privilege Management）**  
+     该漏洞的成因是`kubewarden-controller`的ServiceAccount被赋予了过高的权限（例如RBAC配置错误），导致攻击者在获取该ServiceAccount的访问权限后，能够绕过预期的权限限制，直接读取集群中的敏感数据（如Kubernetes Secrets）。
+
+2. **潜在攻击场景分析**  
+   - 攻击者可能通过以下路径利用此漏洞：  
+     1. **横向移动**：若攻击者已通过其他漏洞（如容器逃逸、Pod劫持）获取了集群内某个容器的控制权，可能进一步窃取`kubewarden-controller`的ServiceAccount令牌（Token）。  
+     2. **权限滥用**：利用窃取的ServiceAccount权限，直接调用Kubernetes API读取任意Secrets（如数据库凭据、TLS证书、密钥等），进而渗透整个集群或外部系统。  
+     3. **供应链攻击**：若攻击者预先在部署流水线中植入恶意代码，可能直接滥用高权限ServiceAccount进行数据窃取。
+
+3. **推荐缓解措施**  
+   - **立即升级**：将`kubewarden-controller`升级至1.6.0或更高版本，官方已修复权限配置问题。  
+   - **最小权限原则**：检查并限制`kubewarden-controller`的RBAC权限，仅授予其运行所需的最小权限（如移除不必要的`get/list` Secrets权限）。  
+   - **ServiceAccount加固**：  
+     - 定期轮换ServiceAccount令牌。  
+     - 禁用不必要的默认ServiceAccount自动挂载（通过Pod配置`automountServiceAccountToken: false`）。  
+   - **审计与监控**：  
+     - 启用Kubernetes审计日志，监控异常Secrets访问行为。  
+     - 使用工具（如Falco、kube-bench）实时检测高权限账户的异常操作。
+
+4. **优先级评估**  
+   - **高**  
+     CVSS 8.8表明漏洞影响严重且利用门槛较低，攻击者可借此直接获取集群敏感数据，导致关键业务系统沦陷。需立即修复。",低危,,
+CVE-2023-22651,SUSE Rancher,Improper Privilege Management vulnerability in SUSE Rancher allows Privilege Escalation. A failure in the update logic of Rancher's admission Webhook may lead to the misconfiguration of the Webhook.,2023/3/25,05/04/2023,2023/4/24,9.9,CRITICAL,内部权限失控,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体为**权限管理不当**。问题根源在于Rancher的admission Webhook更新逻辑存在缺陷，导致Webhook配置错误。这种逻辑错误可能使权限校验机制失效，破坏Kubernetes集群的准入控制流程。
+
+2. **潜在攻击场景分析**  
+   - 攻击者可通过构造恶意API请求绕过Webhook的校验逻辑，例如部署特权容器、篡改RBAC配置或创建未授权的资源。  
+   - 利用Webhook配置错误注入恶意YAML声明，在集群内横向移动获取管理员权限。  
+   - 通过劫持未正确配置的Webhook服务端点，伪造准入控制决策，实现持久化攻击。
+
+3. **推荐缓解措施**  
+   - **紧急措施**：立即升级至SUSE Rancher官方修复版本（需确认补丁版本号）。  
+   - **防御加固**：启用Pod Security Policies并实施最小权限原则，限制高权限容器的部署。  
+   - **监控检测**：部署Kubernetes审计日志分析，重点关注`admissionreview.k8s.io/v1` API事件异常。  
+   - **架构隔离**：通过NetworkPolicy限制Webhook服务端点的网络暴露面，仅允许控制平面组件访问。
+
+4. **优先级评估**  
+   **最高优先级（Critical）**。CVSS 9.9分（可能为CVSSv3.1的CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:H/A:H）表明：  
+   - 攻击者可远程利用（Network攻击向量）  
+   - 权限提升直接影响集群控制平面（Scope:Changed）  
+   - 可能造成全集群接管（机密性/完整性/可用性全面高危）  
+   需在24小时内启动修复流程，同时开启入侵指标(IOC)扫描。",低危,,
+CVE-2023-23947,Argo CD,"Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes. All Argo CD versions starting with 2.3.0-rc1 and prior to 2.3.17, 2.4.23  2.5.11, and 2.6.2 are vulnerable to an improper authorization bug which allows users who have the ability to update at least one cluster secret to update any cluster secret. The attacker could use this access to escalate privileges (potentially controlling Kubernetes resources) or to break Argo CD functionality (by preventing connections to external clusters). A patch for this vulnerability has been released in Argo CD versions 2.6.2, 2.5.11, 2.4.23, and 2.3.17. Two workarounds are available. Either modify the RBAC configuration to completely revoke all `clusters, update` access, or use the `destinations` and `clusterResourceWhitelist` fields to apply similar restrictions as the `namespaces` and `clusterResources` fields.",2023/2/17,2023-02-16T18:15:11Z,2023/2/16,8.5,HIGH,代码注入,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体为**权限验证不当（Improper Authorization）**。根本原因是Argo CD在验证用户权限时，未正确限制用户对集群密钥（cluster secret）的更新范围。即使仅拥有部分集群密钥的更新权限，攻击者仍可绕过授权机制，任意修改其他集群的密钥。
+
+2. **潜在攻击场景分析**  
+   - **权限提升**：攻击者利用漏洞修改高权限集群的密钥（如管理员集群），获取对Kubernetes资源的控制权，进而部署恶意Pod或窃取敏感数据。  
+   - **服务中断**：通过篡改外部集群连接密钥，阻断Argo CD与目标集群的通信，导致持续交付流程中断。  
+   - **横向渗透**：若集群密钥包含跨环境凭据（如云平台API密钥），攻击者可借此渗透至其他系统。  
+
+3. **推荐缓解措施**  
+   - **立即升级**：优先升级至修补版本（2.6.2、2.5.11、2.4.23或2.3.17）。  
+   - **临时方案**：  
+     - **RBAC限制**：通过Kubernetes RBAC完全移除所有用户的`clusters, update`权限。  
+     - **配置约束**：使用`destinations`和`clusterResourceWhitelist`字段限制资源访问范围，替代原有宽松的`namespaces`和`clusterResources`配置。  
+   - **审计与监控**：检查历史集群密钥修改记录，监控异常操作。  
+
+4. **优先级评估**  
+   **高**。CVSS 8.5表明漏洞具备高攻击复杂度与影响面，且直接关联权限提升和关键服务中断风险。建议立即修复，尤其在多租户或暴露于外网的Argo CD实例中。",低危,,
+CVE-2023-26484,KubeVirt,"KubeVirt is a virtual machine management add-on for Kubernetes. In versions 0.59.0 and prior, if a malicious user has taken over a Kubernetes node where virt-handler (the KubeVirt node-daemon) is running, the virt-handler service account can be used to modify all node specs. This can be misused to lure-in system-level-privileged components which can, for instance, read all secrets on the cluster, or can exec into pods on other nodes. This way, a compromised node can be used to elevate privileges beyond the node until potentially having full privileged access to the whole cluster. The simplest way to exploit this, once a user could compromise a specific node, is to set with the virt-handler service account all other nodes to unschedulable and simply wait until system-critical components with high privileges appear on its node. No patches are available as of time of publication. As a workaround, gatekeeper users can add a webhook which will block the `virt-handler` service account to modify the spec of a node.",01/27/2023,2023-03-15T21:15:08Z,7-Sep-24,8.2,HIGH,过度权限配置,"1. **漏洞类型分类或成因**  
+   该漏洞属于**权限配置错误**。由于KubeVirt的`virt-handler`服务账户被授予了过高的权限（允许修改集群中所有节点的`spec`字段），攻击者可通过已控制的节点滥用这一权限，导致横向权限提升。
+
+2. **潜在攻击场景分析**  
+   - 攻击者通过漏洞（如容器逃逸或物理访问）控制一个Kubernetes节点。  
+   - 利用该节点上`virt-handler`的高权限服务账户，将其他节点标记为`unschedulable`，迫使集群调度高权限系统组件（如`kube-system`命名空间下的Pod）到被控节点。  
+   - 当高权限Pod（如具有`cluster-admin`权限的组件）运行到被控节点时，攻击者可通过`exec`进入这些Pod，窃取集群敏感信息（如Secrets）或横向移动至其他节点，最终控制整个集群。
+
+3. **推荐缓解措施**  
+   - **临时方案**：使用Open Policy Agent (OPA) Gatekeeper部署Webhook，禁止`virt-handler`服务账户修改节点的`spec`字段（例如通过约束模板限制`Node`资源的修改）。  
+   - **权限最小化**：调整RBAC配置，限制`virt-handler`服务账户的权限，仅授予其执行必要操作的权限（如禁止`update/patch`节点的`spec`）。  
+   - **节点隔离**：加强节点安全防护（如使用Pod安全策略、限制特权容器、启用SELinux/AppArmor），降低节点被初始攻破的风险。  
+   - **监控与告警**：监控节点`spec`的异常修改行为（如频繁设置`unschedulable`），并实时告警。
+
+4. **优先级评估**  
+   **高**。该漏洞CVSS评分为8.2（高危），且允许从单一节点权限提升至集群级权限，对多租户Kubernetes环境或生产集群威胁极大。建议立即实施缓解措施，并持续关注官方补丁发布。",低危,,
+CVE-2023-29018,OpenFeature Operator,"The OpenFeature Operator allows users to expose feature flags to applications. Assuming the pre-existence of a vulnerability that allows for arbitrary code execution, an attacker could leverage the lax permissions configured on `open-feature-operator-controller-manager` to escalate the privileges of any SA in the cluster. The increased privileges could be used to modify cluster state, leading to DoS, or read sensitive data, including secrets. Version 0.2.32 mitigates this issue by restricting the resources the `open-feature-operator-controller-manager` can modify."," Apr 13, 2023",2023-04-14T19:15:09Z,12-Apr-23,8.8,HIGH,过度权限配置,"1. **漏洞类型分类或成因**  
+   **权限配置错误**。漏洞成因是`open-feature-operator-controller-manager`的权限配置过于宽松，未遵循最小权限原则，允许攻击者在已有任意代码执行漏洞的基础上，利用高权限服务账户（SA）进行特权升级。
+
+2. **潜在攻击场景分析**  
+   - 攻击者通过其他漏洞（如远程代码执行）进入集群环境后，利用`open-feature-operator-controller-manager`的宽松权限修改集群资源（如创建/删除Pod、修改ConfigMap或Secret），导致服务中断（DoS）。  
+   - 通过提升的权限直接读取敏感数据（如Kubernetes Secret），获取数据库凭证、API密钥等机密信息。  
+   - 横向移动：利用被劫持的SA权限攻击集群内其他组件或节点，扩大攻击影响范围。
+
+3. **推荐缓解措施**  
+   - **立即升级到0.2.32版本**：该版本已通过限制`open-feature-operator-controller-manager`的资源操作权限修复问题。  
+   - **检查并加固RBAC配置**：手动审查所有服务账户和角色的权限，确保仅授予必要的最小权限。  
+   - **隔离高危组件**：在集群中实施网络策略，限制`open-feature-operator-controller-manager`与其他关键组件的非必要通信。  
+   - **监控异常活动**：部署审计日志和入侵检测系统（如Falco），实时监控对敏感资源（如Secrets、Roles）的异常操作。
+
+4. **优先级评估**  
+   **高**。CVSS 8.8分表明漏洞危害严重，且攻击者可利用其直接破坏集群安全边界，导致数据泄露或服务瘫痪。需立即修复。",低危,,
+CVE-2023-30512,CubeFS,"CubeFS through 3.2.1 allows Kubernetes cluster-level privilege escalation. This occurs because DaemonSet has cfs-csi-cluster-role and can thus list all secrets, including the admin secret.","Apr 9, 2023
+",2023-04-12T06:15:07Z,2025/1/22,6.5,MEDIUM,过度权限配置,"1. **漏洞类型分类或成因**  
+   该漏洞属于**权限配置错误**。具体原因为CubeFS的DaemonSet被错误授予了过高的Kubernetes集群权限（`cfs-csi-cluster-role`），允许其列举所有Secrets（包括管理员凭证），违反了最小权限原则。
+
+2. **潜在攻击场景分析**  
+   - 攻击者可能通过控制CubeFS的DaemonSet Pod，利用其高权限角色执行`kubectl get secrets`命令，窃取集群敏感信息（如管理员凭证）。  
+   - 获取管理员Secret后，攻击者可进一步横向移动，接管整个Kubernetes集群，部署恶意容器、篡改服务或窃取其他敏感数据。  
+   - 结合其他漏洞，可能实现从容器逃逸到集群完全控制的完整攻击链。
+
+3. **推荐缓解措施**  
+   - **权限最小化**：修改`cfs-csi-cluster-role`的ClusterRole定义，移除`secrets`资源的`list`权限，仅保留其正常运行所需的最低权限。  
+   - **升级版本**：检查CubeFS官方是否已发布修复版本（高于3.2.1），及时更新并验证补丁有效性。  
+   - **审计现有集群**：使用`kubectl get clusterrolebindings`和`kubectl get rolebindings --all-namespaces`检查其他资源是否绑定过高权限角色。  
+   - **启用RBAC监控**：通过Kubernetes审计日志或安全工具（如Falco）监控异常Secret访问行为。  
+
+4. **优先级评估**  
+   **高**。此漏洞直接导致集群级特权提升，可能被用于完全控制Kubernetes环境，影响业务可用性和数据机密性。CVSS 6.5评分可能低估了实际风险（因攻击路径明确且利用成本较低），需立即修复。",低危,,
+CVE-2023-30617,Kruise,"Kruise provides automated management of large-scale applications on Kubernetes. Starting in version 0.8.0 and prior to versions 1.3.1, 1.4.1, and 1.5.2, an attacker who has gained root privilege of the node that kruise-daemon run can leverage the kruise-daemon pod to list all secrets in the entire cluster. After that, the attacker can leverage the ""captured"" secrets (e.g. the kruise-manager service account token) to gain extra privileges such as pod modification. Versions 1.3.1, 1.4.1, and 1.5.2 fix this issue. A workaround is available. For users that do not require imagepulljob functions, they can modify kruise-daemon-role to drop the cluster level secret get/list privilege."," Jan 3, 2024",2024-01-03T16:15:08Z,26-Jan-24,6.5,MEDIUM,过度权限配置,"1. **漏洞类型分类或成因**  
+   该漏洞属于**权限配置错误**。具体成因是Kruise的`kruise-daemon`组件被赋予了过高的集群级别权限（`secret`资源的`get/list`操作），导致攻击者在已控制节点的情况下，可利用该组件获取集群内敏感信息（如Secrets）。
+
+2. **潜在攻击场景分析**  
+   - 攻击者通过漏洞利用或社会工程获取目标节点（运行`kruise-daemon`的节点）的**root权限**。  
+   - 利用`kruise-daemon` Pod的高权限角色，列出集群内所有Secrets（包括Kubernetes服务账户令牌、数据库凭证等）。  
+   - 通过窃取的Secrets（如`kruise-manager`服务账户令牌），攻击者可进一步执行特权操作（如创建/删除Pod、访问其他命名空间资源），最终实现横向移动或集群接管。
+
+3. **推荐缓解措施**  
+   - **立即升级**到修复版本（Kruise v1.3.1、v1.4.1、v1.5.2或更高）。  
+   - **权限最小化原则**：如果不需要`imagepulljob`功能，修改`kruise-daemon-role`的RBAC配置，移除`secret`资源的`get/list`权限。  
+   - **节点安全加固**：限制对Kubernetes节点的root访问，实施严格的访问控制与审计。  
+   - **监控与检测**：对`kruise-daemon`的API请求进行异常行为监控（如大规模Secret读取操作）。
+
+4. **优先级评估**  
+   **高**。  
+   虽然攻击需要先获取节点root权限（可能降低直接风险），但一旦成功利用，攻击者可通过Secrets迅速提升权限至集群级别，导致严重后果（如数据泄露、服务中断）。对于使用Kruise且未限制`kruise-daemon`权限的集群，需优先修复。",低危,,
+CVE-2023-30622,Clusternet,Clusternet is a general-purpose system for controlling Kubernetes clusters across different environments. An issue in clusternet prior to version 0.15.2 can be leveraged to lead to a cluster-level privilege escalation.,2023/4/21,2023-04-24T16:15:07Z,21-Apr-23,8.8,HIGH,内部权限失控,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体成因可能涉及不完善的访问控制机制或授权验证逻辑。在Clusternet中，由于未正确验证用户或服务账户的权限，攻击者可能通过特定API请求绕过权限检查，从而在集群级别执行未授权操作。
+
+2. **潜在攻击场景分析**  
+   - 攻击者通过低权限账户（如受限的ServiceAccount）访问Clusternet API，利用漏洞创建、修改或删除集群资源（如部署恶意Pod、篡改ClusterRoleBinding），最终控制整个Kubernetes集群。  
+   - 跨集群场景中，攻击者可能从一个受控集群通过Clusternet的跨集群管理功能横向移动到其他集群，扩大攻击范围。  
+   - 结合其他漏洞（如容器逃逸），攻击者可能将权限从容器内提升到宿主节点，再通过Clusternet漏洞进一步控制其他集群。
+
+3. **推荐缓解措施**  
+   - **立即升级**至Clusternet 0.15.2或更高版本。  
+   - **强化RBAC配置**：审查所有ClusterRole、RoleBinding及ServiceAccount权限，遵循最小权限原则。  
+   - **网络隔离**：限制Clusternet API的访问来源，仅允许可信IP或服务通信。  
+   - **审计与监控**：启用Kubernetes审计日志并监控异常API请求（如未授权的`cluster-admin`权限操作）。  
+   - **临时缓解**：若无法立即升级，可手动禁用高风险API端点或通过准入控制器（如OPA/Gatekeeper）实施策略拦截可疑请求。
+
+4. **优先级评估**  
+   **高**。CVSS 8.8表明该漏洞具有高攻击复杂度但低权限要求的潜在风险，可能导致集群完全失陷，需优先修复。在云原生多集群环境中，其影响可能呈指数级扩散。",低危,,
+CVE-2023-30840,Fluid,"Fluid is an open source Kubernetes-native distributed dataset orchestrator and accelerator for data-intensive applications. Starting in version 0.7.0 and prior to version 0.8.6, if a malicious user gains control of a Kubernetes node running fluid csi pod (controlled by the `csi-nodeplugin-fluid` node-daemonset), they can leverage the fluid-csi service account to modify specs of all the nodes in the cluster. However, since this service account lacks `list node` permissions, the attacker may need to use other techniques to identify vulnerable nodes. Once the attacker identifies and modifies the node specs, they can manipulate system-level-privileged components to access all secrets in the cluster or execute pods on other nodes. This allows them to elevate privileges beyond the compromised node and potentially gain full privileged access to the whole cluster. To exploit this vulnerability, the attacker can make all other nodes unschedulable (for example, patch node with taints) and wait for system-critical components with high privilege to appear on the compromised node. However, this attack requires two prerequisites: a compromised node and identifying all vulnerable nodes through other means. Version 0.8.6 contains a patch for this issue. As a workaround, delete the `csi-nodeplugin-fluid` daemonset in `fluid-system` namespace and avoid using CSI mode to mount FUSE file systems. Alternatively, using sidecar mode to mount FUSE file systems is recommended.
+
+",05/08/2023,2023-05-08T18:15:14Z,05/08/2023,7.8,HIGH,过度权限配置,"1. **漏洞类型分类或成因**  
+   该漏洞属于**权限配置错误（Misconfiguration of Permissions）**。具体原因为`csi-nodeplugin-fluid`服务账户被授予了过高的权限（`update`/`patch`节点资源的权限），且未遵循最小权限原则。攻击者通过控制运行该Pod的节点后，可利用此服务账户的权限直接修改集群中其他节点的配置（如添加污点），进而破坏集群调度或劫持高权限组件。
+
+2. **潜在攻击场景分析**  
+   - **横向权限提升**：攻击者控制一个运行`fluid-csi`的节点后，通过修改节点属性（如添加`NoSchedule`污点），迫使关键系统Pod（如`kube-apiserver`、`kube-controller-manager`等）因调度规则变化而迁移到被控节点。此时攻击者可利用这些Pod的高权限窃取集群敏感信息（如Secrets）或执行恶意操作。  
+   - **集群拒绝服务**：通过批量修改节点为不可调度状态，导致正常Pod无法分配资源，引发服务中断。  
+   - **依赖其他信息收集手段**：由于服务账户无`list nodes`权限，攻击者可能需要结合其他漏洞（如信息泄露）或利用集群内已有Pod分布推断节点信息。
+
+3. **推荐缓解措施**  
+   - **立即升级到Fluid 0.8.6**：官方版本已修复权限配置问题。  
+   - **临时缓解方案**：  
+     - 删除`fluid-system`命名空间下的`csi-nodeplugin-fluid` DaemonSet。  
+     - 停止使用CSI模式挂载FUSE文件系统，改用**Sidecar模式**（需确保其实现无类似权限问题）。  
+   - **强化RBAC策略**：定期审计服务账户权限，确保仅授予必要的最小权限（如限制`nodes/update`权限）。  
+   - **节点隔离与监控**：对运行Fluid组件的节点实施严格的网络策略和入侵检测，限制其与其他节点的非必要通信。
+
+4. **优先级评估**  
+   **高优先级**。该漏洞CVSS评分为7.8（可能对应CVSS:3.x向量中的AV:A/AC:L/PR:L/UI:N/S:C/C:H/I:H/A:H），攻击者可利用单一节点权限逐步控制整个集群，对多租户Kubernetes环境或生产集群具有严重威胁。需立即修补或实施缓解措施。",低危,,
+CVE-2023-3676,Kubernetes Windows,A security issue was discovered in Kubernetes where a user that can create pods on Windows nodes may be able to escalate to admin privileges on those nodes. Kubernetes clusters are only affected if they include Windows nodes.,2023/7/15,2023-10-31T21:15:08Z,2025/3/3,8.8,HIGH,K8S漏洞,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体表现为权限提升漏洞。其成因在于Kubernetes对Windows节点上的Pod创建权限控制不严格，导致攻击者可能通过创建恶意Pod绕过安全边界，访问或操作宿主机的敏感资源，从而获取节点管理员权限。
+
+2. **潜在攻击场景分析**  
+   - 攻击者获得在Windows节点上创建Pod的权限后，可能通过以下方式利用漏洞：  
+     - 在Pod中挂载Windows节点敏感目录（如`C:\`），直接修改或读取宿主机文件。  
+     - 利用容器逃逸技术（如滥用特权容器、Windows符号链接漏洞）执行宿主机命令。  
+     - 通过Windows节点的高权限服务（如kubelet）进行横向移动，控制整个节点甚至集群。  
+   - 典型场景：多租户Kubernetes集群中，恶意租户通过创建Pod提升权限，接管Windows工作节点，进而攻击控制平面或其他节点。
+
+3. **推荐缓解措施**  
+   - **立即升级Kubernetes版本**：应用官方补丁（需确认具体版本号，例如v1.22.4+、v1.23.1+等）。  
+   - **最小化权限控制**：  
+     - 通过RBAC严格限制普通用户在Windows节点上创建Pod的权限。  
+     - 使用`PodSecurityPolicy`（若版本支持）或第三方策略引擎（如OPA Gatekeeper）禁止高危Pod配置（如宿主目录挂载、特权模式）。  
+   - **节点隔离**：  
+     - 将Windows节点与Linux节点划分到不同命名空间或集群。  
+     - 启用网络策略限制Windows节点间的非必要通信。  
+   - **审计与监控**：  
+     - 监控异常Pod创建行为（如频繁尝试挂载宿主机目录）。  
+     - 定期检查Windows节点的本地管理员账户及服务权限配置。
+
+4. **优先级评估**  
+   **高**  
+   - CVSS 8.8（高危）表明漏洞具备低攻击复杂度、高影响性（权限提升直接影响节点完整性）。  
+   - 对包含Windows节点的生产环境威胁极大，需立即修复。若无法快速升级，应通过权限限制和策略加固临时缓解。",低危,,
+CVE-2023-3893,Kubernetes Windows,A security issue was discovered in Kubernetes where a user that can create pods on Windows nodes running kubernetes-csi-proxy may be able to escalate to admin privileges on those nodes. Kubernetes clusters are only affected if they include Windows nodes running kubernetes-csi-proxy.,2023/7/26,2023-11-03T18:15:08Z,7-May-24,8.8,HIGH,K8S漏洞,"1. **漏洞类型分类或成因**  
+   该漏洞属于**权限提升漏洞**，主要成因是Kubernetes Windows节点中`kubernetes-csi-proxy`组件的**安全逻辑缺陷**。攻击者通过创建特定Pod，可能绕过权限控制机制，滥用`kubernetes-csi-proxy`的高权限接口，从而获得节点管理员权限。
+
+2. **潜在攻击场景分析**  
+   - 攻击者通过合法或非法手段获取在目标Windows节点上创建Pod的权限（例如，通过被入侵的Service Account或过度宽松的RBAC配置）。  
+   - 在Pod中运行恶意容器，利用`kubernetes-csi-proxy`的接口（如卷管理、文件系统操作等）执行特权操作，例如写入系统文件、执行管理员命令或窃取节点敏感数据。  
+   - 最终完全控制Windows节点，进而横向渗透集群或破坏节点稳定性。
+
+3. **推荐缓解措施**  
+   - **升级修复版本**：应用Kubernetes官方补丁，确保`kubernetes-csi-proxy`组件更新至修复版本。  
+   - **最小权限原则**：通过RBAC严格限制Pod创建权限，仅允许必要用户/服务账号在Windows节点部署Pod。  
+   - **隔离Windows节点**：将Windows节点部署在独立网络分区，并限制其与其他集群组件的非必要通信。  
+   - **监控与审计**：启用Kubernetes审计日志，监控异常Pod创建行为及`kubernetes-csi-proxy`的异常调用。  
+
+4. **优先级评估**  
+   **高**。CVSS 8.8表明漏洞危害严重，且攻击路径明确（从Pod创建到节点提权）。若集群包含Windows节点并启用`kubernetes-csi-proxy`，需立即修复。",低危,,
+CVE-2023-3955,Kubernetes Windows,A security issue was discovered in Kubernetes where a user that can create pods on Windows nodes may be able to escalate to admin privileges on those nodes. Kubernetes clusters are only affected if they include Windows nodes.,2023/7/26,2023-10-31T21:15:08Z,7-May-24,8.8,HIGH,K8S漏洞,"1. **漏洞类型分类或成因**  
+   该漏洞属于**权限提升漏洞**，具体原因为Kubernetes在Windows节点上对Pod的安全上下文或资源访问控制存在缺陷。攻击者可能通过创建特制Pod，利用Windows节点的权限管理机制缺陷（如未正确隔离容器与主机权限、安全策略配置不当等），绕过预期的用户权限限制，从而获得节点管理员权限。
+
+2. **潜在攻击场景分析**  
+   - 攻击者获得在Windows节点上创建Pod的权限（例如通过被过度授权的服务账户或用户角色）。
+   - 通过构造恶意Pod配置（如挂载敏感主机目录、滥用特权容器功能或利用Windows容器特性），在Pod内执行操作直接访问或修改主机系统资源。
+   - 最终在Windows节点上以管理员身份执行任意代码，控制节点主机，进而横向渗透整个集群或其他节点。
+
+3. **推荐缓解措施**  
+   - **立即升级Kubernetes版本**：应用官方修复补丁（需根据CVE编号确认具体版本）。
+   - **最小化权限原则**：通过RBAC严格限制用户/服务账户创建Pod的权限，尤其是对Windows节点。
+   - **启用安全策略**：使用Kubernetes Pod安全准入控制（如PSP替代方案`PodSecurity` API），禁止Windows Pod使用高危配置（如特权模式、主机路径挂载）。
+   - **节点加固**：隔离Windows节点网络，定期审计节点权限配置，确保容器运行时（如containerd）为最新版本。
+   - **监控与检测**：部署集群审计日志监控异常Pod创建行为，并设置主机级文件/进程变更告警。
+
+4. **优先级评估**  
+   **高**。CVSS 8.8分表明漏洞危害严重，且攻击复杂度较低（需基础权限但无需用户交互）。对于包含Windows节点的Kubernetes集群，此漏洞可直接导致节点完全沦陷，需立即修复。",低危,,
+CVE-2023-46254,capsule-proxy,capsule-proxy is a reverse proxy for Capsule kubernetes multi-tenancy framework. A bug in the RoleBinding reflector used by `capsule-proxy` gives ServiceAccount tenant owners the right to list Namespaces of other tenants backed by the same owner kind and name.,2023/11/6,2023-11-06T19:15:09Z,2023/11/6,4.3,MEDIUM,内部权限失控,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体为访问控制（Access Control）问题。成因在于`capsule-proxy`的RoleBinding反射器未正确验证租户所有者的唯一性，导致当多个租户使用相同的所有者类型（Kind）和名称（Name）时，服务账户（ServiceAccount）持有者可以越权访问其他租户的Namespace信息。
+
+2. **潜在攻击场景分析**  
+   - **跨租户信息泄露**：同一集群中，若两个不同租户（TenantA和TenantB）的所有者类型和名称相同（例如均使用ServiceAccount `admin@tenant`），TenantA的持有者可通过`capsule-proxy`非法列出TenantB的Namespace，导致敏感信息泄露。  
+   - **横向渗透基础**：攻击者可利用此漏洞探测其他租户的Namespace结构，为后续攻击（如Pod逃逸、横向移动）提供情报支持。  
+   - **多租户环境滥用**：若集群存在批量创建租户且未严格校验所有者唯一性的场景（如自动化流程），此漏洞可能被大规模利用。
+
+3. **推荐缓解措施**  
+   - **升级补丁**：立即升级至`capsule-proxy`已修复此漏洞的版本（需确认官方补丁版本）。  
+   - **强化租户唯一性校验**：确保每个租户的所有者（Owner）标识（Kind+Name）全局唯一，避免重复。  
+   - **细化RBAC规则**：在Kubernetes集群中为不同租户设置更严格的RBAC策略，限制ServiceAccount的Namespace列表权限。  
+   - **审计与监控**：检查现有租户配置是否存在重复的所有者标识，并监控异常Namespace列表请求。
+
+4. **优先级评估**  
+   **中优先级**。  
+   - **依据**：CVSS 4.3（中危）表明攻击复杂度较高（需相同所有者类型/名称），且直接影响范围限于信息泄露，但多租户环境的数据隔离是关键安全需求，仍需及时修复。  
+   - **例外情况**：若集群内存在大量共享相同所有者标识的租户，则应提升至**高优先级**。",低危,,
+CVE-2023-48312,capsule-proxy,capsule-proxy is a reverse proxy for the capsule operator project. Affected versions are subject to a privilege escalation vulnerability which is based on a missing check if the user is authenticated based on the `TokenReview` result.,2023/11/24,2023-11-24T18:15:07Z,2023/11/23,9.8,CRITICAL,内部权限失控,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体原因为缺失身份验证检查。当处理`TokenReview`结果时，系统未正确验证用户是否已通过身份认证，导致攻击者可绕过身份认证机制。
+
+2. **潜在攻击场景分析**  
+   攻击者可通过构造未经验证的请求（如伪造或无效的Token）发送至`capsule-proxy`。由于系统未校验`TokenReview`返回的认证状态，攻击者可能被错误授予合法用户权限，进而执行未经授权的操作（如访问其他租户的资源、创建/删除集群资源等），最终实现横向移动或垂直权限提升。
+
+3. **推荐缓解措施**  
+   - **立即升级**：应用官方修复版本，确保在`TokenReview`结果中强制校验用户认证状态（如检查`status.authenticated`字段是否为`true`）。  
+   - **强化认证逻辑**：在代理层增加多重校验机制（如审计Token有效性、绑定请求上下文与身份信息）。  
+   - **网络隔离**：限制`capsule-proxy`的访问范围，仅允许受信实体调用敏感接口。  
+   - **监控与日志审计**：记录所有Token验证失败事件，并设置告警阈值检测异常认证尝试。
+
+4. **优先级评估**  
+   **高**。CVSS 9.8分表明漏洞可被远程利用且无需复杂前置条件，直接影响系统的机密性、完整性和可用性。需立即修复以避免大规模权限滥用风险。",低危,,
+CVE-2023-50726,Argo CD,"Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes. Local sync"" is an Argo CD feature that allows developers to temporarily override an Application's manifests with locally-defined manifests. Use of the feature should generally be limited to highly-trusted users since it allows the user to bypass any merge protections in git. An improper validation bug allows users who have `create` privileges but not `override` privileges to sync local manifests on app creation. All other restrictions  including AppProject restrictions are still enforced. The only restriction which is not enforced is that the manifests come from some approved git/Helm/OCI source. The bug was introduced in 1.2.0-rc1 when the local manifest sync feature was added. The bug has been patched in Argo CD versions 2.10.3  2.9.8  and 2.8.12. Users are advised to upgrade. Users unable to upgrade may mitigate the risk of branch protection bypass by removing `applications create` RBAC access. The only way to eliminate the issue without removing RBAC access is to upgrade to a patched version.""",14-Mar-24,2024-03-13T21:15:54Z,14-Mar-24,(not available),NAN,内部权限失控,"1. **漏洞类型分类或成因**  
+   该漏洞属于**权限绕过漏洞**，具体原因为**安全逻辑缺陷**。问题出现在Argo CD对用户权限的验证逻辑不完善：当用户拥有`applications create`权限但未授予`override`权限时，系统未正确验证应用创建时的同步来源是否为合法的Git/Helm/OCI仓库，导致攻击者可绕过分支保护机制。
+
+2. **潜在攻击场景分析**  
+   - 攻击者利用`applications create`权限创建新应用时，注入本地恶意清单文件，将未经审核的代码或配置部署到Kubernetes集群中。  
+   - 绕过Git仓库的合并请求（MR）保护机制（如代码审查、自动化测试等），直接部署高风险变更，可能导致供应链攻击或权限提升。  
+   - 结合其他漏洞（如容器逃逸或提权漏洞），攻击者可进一步控制集群资源。
+
+3. **推荐缓解措施**  
+   - **立即升级**到已修复版本（2.10.3、2.9.8、2.8.12）。  
+   - **临时缓解**：通过RBAC限制`applications create`权限，仅授予必要的最小权限。  
+   - **审计权限分配**：检查所有用户和服务的权限，确保无低权限用户拥有`applications create`权限。  
+   - **启用审计日志**：监控Argo CD的创建和同步操作，及时发现异常行为。
+
+4. **优先级评估**  
+   **高优先级**。  
+   此漏洞允许低权限用户绕过关键的安全控制（分支保护），直接部署未经验证的代码，可能引发供应链攻击或集群级安全事件。对于使用Argo CD的Kubernetes环境，其影响范围广且修复措施明确，需优先处理。",低危,,
+CVE-2023-5408,OpenShift,A privilege escalation flaw was found in the node restriction admission plugin of the kubernetes api server of OpenShift. A remote attacker who modifies the node role label could steer workloads from the control plane and etcd nodes onto different worker nodes and gain broader access to the cluster.,滞后（未知）,2023-11-02T03:15:10Z,"Oct 5, 2023 ",7.2,HIGH,内部权限失控,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体源于OpenShift Kubernetes API Server中的节点限制准入插件（Node Restriction Admission Plugin）对节点角色标签的验证机制不严格。攻击者通过恶意修改节点标签，绕过预期的工作负载调度限制，导致控制平面或etcd节点的工作负载被错误调度到普通工作节点，破坏集群的隔离性。
+
+2. **潜在攻击场景分析**  
+   - **场景1**: 攻击者通过已获取的有限权限（如普通用户凭证）篡改节点标签（例如将普通节点标记为`node-role.kubernetes.io/master`），诱使调度器将敏感工作负载（如API Server Pod）部署到被控制的节点，从而窃取敏感数据（如etcd密钥）。  
+   - **场景2**: 攻击者通过将控制平面节点的标签移除或降级，迫使关键系统Pod（如kube-apiserver）被驱逐到非受保护节点，导致集群管理功能暴露于低安全环境。  
+   - **横向移动**: 成功调度到被控节点的工作负载可能包含更高权限的Service Account Token，攻击者可利用其进一步渗透集群。
+
+3. **推荐缓解措施**  
+   - **立即升级**: 应用OpenShift官方发布的补丁版本，确保节点限制准入插件正确校验标签变更的合法性。  
+   - **强化RBAC**: 限制非管理员用户对节点资源的修改权限（如`nodes/update`操作），遵循最小权限原则。  
+   - **标签锁定**: 使用Kubernetes的**NodeRestriction**准入控制器扩展功能，禁止非特权用户修改特定系统标签（如`node-role.kubernetes.io/*`）。  
+   - **审计与监控**: 启用集群审计日志，监控异常节点标签变更行为，并设置警报（如通过Falco或OpenShift内置监控）。  
+   - **网络隔离**: 通过NetworkPolicy或硬件防火墙限制控制平面节点与工作节点的非必要通信，减少横向渗透可能性。
+
+4. **优先级评估**  
+   **优先级：高**  
+   - **影响范围**: 漏洞直接导致集群权限边界被突破，可能泄露集群核心敏感数据（如etcd存储内容）。  
+   - **利用条件**: 攻击者仅需具备修改节点标签的权限（可能通过低权限用户实现），技术门槛中等。  
+   - **CVSS评分佐证**: CVSS 7.2（High）表明攻击复杂度较低（Attack Vector: Network）且对机密性、完整性的破坏性显著。  
+   - **业务影响**: 若攻击者成功利用，可接管整个OpenShift集群，属于严重安全事件。需优先修复。",低危,,
+CVE-2023-5528,Kubernetes Windows,A security issue was discovered in Kubernetes where a user that can create pods and persistent volumes on Windows nodes may be able to escalate to admin privileges on those nodes. Kubernetes clusters are only affected if they are using an in-tree storage plugin for Windows nodes.,2023/11/14,2023-11-14T21:15:14Z,7-May-24,8.8,HIGH,K8S漏洞,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体原因为Kubernetes的in-tree存储插件在Windows节点上未正确限制用户通过创建Pod和持久卷（Persistent Volume）时的权限边界，导致攻击者可利用存储插件的逻辑缺陷绕过权限控制，实现本地提权至Windows节点管理员权限。
+
+2. **潜在攻击场景分析**  
+   - 攻击者需具备在集群中创建Pod和持久卷的权限（例如普通用户或服务账户被过度授权）。  
+   - 通过构造恶意Pod并关联特制的持久卷，利用in-tree存储插件（如`hostPath`、`AzureDisk`等）在Windows节点上的路径解析或权限分配漏洞，将恶意文件挂载至系统敏感目录，或直接执行代码以获取SYSTEM权限。  
+   - 攻击成功后，攻击者可完全控制受感染的Windows节点，进而横向渗透集群或窃取敏感数据。
+
+3. **推荐缓解措施**  
+   - **升级Kubernetes版本**：应用官方补丁（需确认具体版本号），优先迁移至使用CSI（Container Storage Interface）驱动的存储方案，替代旧版in-tree插件。  
+   - **最小化权限控制**：通过RBAC严格限制用户/服务账户创建Pod和持久卷的权限，遵循最小特权原则。  
+   - **隔离Windows节点**：将Windows节点部署在独立的安全组或网络分段中，限制其与其他关键资源的直接通信。  
+   - **审计与监控**：启用Kubernetes审计日志并监控异常Pod创建行为，重点关注涉及Windows节点的高权限操作。
+
+4. **优先级评估**  
+   **高**。该漏洞CVSS评分为8.8（High），攻击者可利用此漏洞直接获得节点管理员权限，对集群和底层基础设施造成严重威胁，需立即修复。",低危,,
+CVE-2024-31989,Argo CD,"Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes. It has been discovered that an unprivileged pod in a different namespace on the same cluster could connect to the Redis server on port 6379.",2024/5/21,2024-05-21T19:15:09Z,2024/5/21,9,CRITICAL,网络隔离,"1. **漏洞类型分类或成因**  
+   该漏洞属于**配置错误**和**安全逻辑缺陷**。由于Argo CD的Redis服务器未正确实施网络隔离或访问控制，导致同一Kubernetes集群中不同命名空间的Pod能够直接访问Redis服务（端口6379），可能存在未授权访问或认证缺失的问题。
+
+2. **潜在攻击场景分析**  
+   - **敏感信息泄露**：攻击者通过连接到Redis服务器，可读取Argo CD存储的敏感数据（如应用配置、凭证、Git仓库信息等）。  
+   - **数据篡改**：恶意Pod可能篡改Redis中的任务队列或配置，导致Argo CD执行非预期的部署操作（例如部署恶意镜像）。  
+   - **横向移动**：结合其他漏洞，攻击者可利用Redis访问权限进一步控制集群资源或提升权限。  
+
+3. **推荐缓解措施**  
+   - **网络策略限制**：使用Kubernetes NetworkPolicy限制Redis服务仅允许来自Argo CD命名空间的流量。  
+   - **启用Redis认证**：为Redis配置强密码认证，确保只有授权客户端可连接。  
+   - **绑定监听地址**：将Redis服务绑定到内部网络接口（如ClusterIP），而非暴露在所有网络接口上。  
+   - **更新Argo CD版本**：应用官方补丁或升级到已修复该漏洞的版本。  
+   - **最小化权限原则**：通过Pod安全策略（PSP）或安全上下文（SecurityContext）限制非必要Pod的权限。  
+
+4. **优先级评估**  
+   **高**。CVSS 9分表明漏洞危害性极高，攻击者可利用此漏洞在集群内横向渗透并接管核心基础设施，需立即修复。",低危,,
+CVE-2024-33522,Calico,"In vulnerable versions of Calico (v3.27.2 and below), Calico Enterprise (v3.19.0-1, v3.18.1, v3.17.3 and below), and Calico Cloud (v19.2.0 and below), an attacker who has local access to the Kubernetes node, can escalate their privileges by exploiting a vulnerability in the Calico CNI install binary. The issue arises from an incorrect SUID (Set User ID) bit configuration in the binary, combined with the ability to control the input binary, allowing an attacker to execute an arbitrary binary with elevated privileges."," Sep 1, 2023",2024-04-29T23:15:06Z,30-Apr-24,(not available),N/A,代码注入,"1. **漏洞类型分类或成因**  
+   该漏洞属于**配置错误与权限管理缺陷**。主要原因是Calico CNI安装二进制文件的SUID（Set User ID）位配置不当，允许非特权用户通过控制输入二进制文件来执行任意代码，从而以提升的权限（如root）运行恶意程序。
+
+2. **潜在攻击场景分析**  
+   - **本地提权攻击**：攻击者通过已获得的节点本地访问权限（例如通过容器逃逸或低权限用户登录），利用配置错误的SUID二进制文件，注入或替换自定义的恶意二进制文件。  
+   - **横向渗透**：成功提权后，攻击者可进一步访问集群内其他节点或敏感资源（如Kubernetes API Server），扩大攻击范围。  
+   - **持久化控制**：通过植入后门或劫持高权限服务，维持对节点或集群的长期控制。
+
+3. **推荐缓解措施**  
+   - **升级补丁**：立即升级至Calico官方修复版本（如Calico v3.27.3+、Calico Enterprise v3.19.0-2+等）。  
+   - **SUID权限修复**：检查并移除受影响二进制文件的SUID位（例如执行`chmod u-s /path/to/binary`）。  
+   - **最小权限原则**：限制Kubernetes节点的本地访问权限，避免非必要用户或服务拥有Shell或文件写入权限。  
+   - **安全审计**：使用工具（如`find / -perm -4000`）定期扫描节点上的SUID/SGID文件，监控异常变更。  
+   - **Pod安全策略**：启用Kubernetes Pod Security Admission或Open Policy Agent（OPA），限制容器权限（如禁止特权容器）。  
+
+4. **优先级评估**  
+   **高**。尽管攻击需本地访问权限，但在云原生环境中，容器逃逸或横向移动可能导致此漏洞被间接利用。成功利用将直接导致节点完全沦陷，进而威胁整个集群安全。建议立即修复。",低危,,
+CVE-2024-40628,JumpServer,"JumpServer is an open-source Privileged Access Management (PAM) tool that provides DevOps and IT teams with on-demand and secure access to SSH, RDP, Kubernetes, Database and RemoteApp endpoints through a web browser. An attacker can exploit the ansible playbook to read arbitrary files in the celery container, leading to sensitive information disclosure. The Celery container runs as root and has database access, allowing the attacker to steal all secrets for hosts, create a new JumpServer account with admin privileges, or manipulate the database in other ways. This issue has been addressed in release versions 3.10.12 and 4.0.0. It is recommended to upgrade the safe versions. There is no known workarounds for this vulnerability.",2024/7/18,2024-07-18T17:15:04Z,11-Jul-24,9.1,CRITICAL,内部权限失控,"1. **漏洞类型分类或成因**  
+   **安全逻辑缺陷与权限配置错误**。该漏洞的成因在于Ansible Playbook存在不当的安全逻辑，允许攻击者读取容器内的任意文件（如路径遍历或未授权访问）。同时，Celtery容器以`root`权限运行且拥有数据库访问权限，属于权限配置错误，进一步放大了漏洞的危害性。
+
+2. **潜在攻击场景分析**  
+   - **敏感信息泄露**：攻击者通过读取`/etc/passwd`、数据库配置文件、密钥文件（如`SECRET_KEY`）等，获取JumpServer的核心敏感数据。  
+   - **权限提升与持久化**：利用数据库访问权限，攻击者可窃取主机SSH密钥、RDP凭据等，或直接创建管理员账户，接管JumpServer控制权。  
+   - **横向渗透**：通过数据库操作篡改其他资产配置，攻击内网其他系统。  
+   - **供应链攻击**：若JumpServer用于管理生产环境，攻击者可进一步破坏CI/CD流程或部署恶意代码。
+
+3. **推荐缓解措施**  
+   - **立即升级**：将JumpServer升级至已修复版本（3.10.12或4.0.0以上），此为唯一有效解决方案。  
+   - **最小化权限原则**：确保容器和服务以非特权用户运行，严格限制数据库账号权限。  
+   - **网络隔离**：限制JumpServer管理接口的访问范围，仅允许授权IP或VPN连接。  
+   - **日志监控与审计**：加强Ansible任务执行日志、数据库操作日志的监控，设置异常行为告警。  
+
+4. **优先级评估**  
+   **高**。CVSS 9.1表明此漏洞危害性极强，可能导致完全系统接管，且JumpServer作为特权访问管理（PAM）工具，一旦失陷将引发连锁反应。需立即修复。",低危,,
+CVE-2024-40629,JumpServer,"JumpServer is an open-source Privileged Access Management (PAM) tool that provides DevOps and IT teams with on-demand and secure access to SSH, RDP, Kubernetes, Database and RemoteApp endpoints through a web browser. An attacker can exploit the Ansible playbook to write arbitrary files, leading to remote code execution (RCE) in the Celery container. The Celery container runs as root and has database access, allowing an attacker to steal all secrets for hosts, create a new JumpServer account with admin privileges, or manipulate the database in other ways. This issue has been patched in release versions 3.10.12 and 4.0.0. It is recommended to upgrade the safe versions. There are no known workarounds for this vulnerability.",2024/7/18,2024-07-18T17:15:04Z,11-Jul-24,9.8,CRITICAL,内部权限失控,"1. **漏洞类型分类或成因**  
+   该漏洞属于**远程代码执行 (RCE)** 和 **不安全的输入验证** 问题。具体成因是 JumpServer 的 Ansible Playbook 功能未对用户输入进行严格校验，导致攻击者可构造恶意请求写入任意文件至 Celery 容器（以 root 权限运行），从而触发远程代码执行。
+
+2. **潜在攻击场景分析**  
+   - 攻击者通过构造恶意 Ansible Playbook 请求，在目标服务器上写入 Web Shell 或恶意脚本，获取 Celery 容器的 root 权限。  
+   - 利用容器对数据库的访问权限，窃取所有主机凭证、创建高权限用户或篡改数据库数据。  
+   - 横向渗透至其他容器或宿主机，进一步控制整个 JumpServer 及其管理的基础设施。
+
+3. **推荐缓解措施**  
+   - **立即升级**至已修复版本（JumpServer 3.10.12 或 4.0.0 及以上）。  
+   - 若无法立即升级，建议通过网络隔离限制 JumpServer 的管理接口访问权限，仅允许受信 IP 或 VPN 连接。  
+   - 监控 Celery 容器的异常文件写入行为及数据库操作日志，设置告警机制。  
+
+4. **优先级评估**  
+   **高**。CVSS 9.8 分表明漏洞危害极大，且 JumpServer 作为核心权限管理系统，一旦被攻破将导致整个基础设施的权限体系沦陷。需立即修复。",低危,,
+CVE-2024-43403,Kanister,"Kanister is a data protection workflow management tool. The kanister has a deployment called default-kanister-operator, which is bound with a ClusterRole called edit via ClusterRoleBinding.",2024/8/21,2024-08-20T22:15:04Z,9-Jul-25,(not available),N/A,过度权限配置,"1. **漏洞类型分类或成因**  
+   该漏洞属于**配置错误**，具体是由于Kanister的默认部署（default-kanister-operator）被过度授权。其通过ClusterRoleBinding绑定了高权限的ClusterRole `edit`，使得该服务账号拥有对集群资源的修改权限（如创建、更新、删除Pod、Service等），超出了最小必要权限原则。
+
+2. **潜在攻击场景分析**  
+   - 攻击者若入侵或劫持Kanister Operator的Pod，可利用`edit`权限在集群内执行恶意操作，例如：  
+     - 部署恶意容器或横向移动至其他敏感资源。  
+     - 窃取或篡改数据（如读取PersistentVolume中的敏感信息）。  
+     - 删除关键资源导致服务中断。  
+   - 若Kanister Operator存在其他漏洞（如API未鉴权），攻击者可能通过结合此权限配置实现提权，完全控制集群。
+
+3. **推荐缓解措施**  
+   - **最小化权限**：创建自定义ClusterRole，仅授予default-kanister-operator运行所需的最小权限（如仅允许操作Kanister相关CRD），替换原有的`edit`绑定。  
+   - **更新版本**：检查Kanister官方是否已发布修复版本，升级至已限制权限的版本。  
+   - **审计集群权限**：使用工具（如kubectl-authz-check、kubeaudit）扫描集群中其他服务账号的权限配置，确保符合最小权限原则。  
+   - **启用网络策略**：限制Kanister Operator的Pod网络通信，仅允许与必要服务的交互。
+
+4. **优先级评估**  
+   **高**。此漏洞直接导致集群内权限提升风险，可能被利用造成数据泄露、服务瘫痪或横向攻击，需立即修复。尤其Kanister用于数据保护场景，其自身漏洞可能破坏整体安全体系。",低危,,
+CVE-2024-43803,Bare Metal Operator ,"The Bare Metal Operator (BMO) implements a Kubernetes API for managing bare metal hosts in Metal3. The `BareMetalHost` (BMH) CRD allows the `userData`, `metaData`, and `networkData` for the provisioned host to be specified as links to Kubernetes Secrets. There are fields for both the `Name` and `Namespace` of the Secret, meaning that versions of the baremetal-operator prior to 0.8.0, 0.6.2, and 0.5.2 will read a `Secret` from any namespace. A user with access to create or edit a `BareMetalHost` can thus exfiltrate a `Secret` from another namespace by using it as e.g. the `userData` for provisioning some host (note that this need not be a real host, it could be a VM somewhere). BMO will only read a key with the name `value` (or `userData`, `metaData`, or `networkData`), so that limits the exposure somewhat. `value` is probably a pretty common key though. Secrets used by _other_ `BareMetalHost`s in different namespaces are always vulnerable. It is probably relatively unusual for anyone other than cluster administrators to have RBAC access to create/edit a `BareMetalHost`. This vulnerability is only meaningful, if the cluster has users other than administrators and users' privileges are limited to their respective namespaces. The patch prevents BMO from accepting links to Secrets from other namespaces as BMH input. Any BMH configuration is only read from the same namespace only. The problem is patched in BMO releases v0.7.0, v0.6.2 and v0.5.2 and users should upgrade to those versions. Prior upgrading, duplicate the BMC Secrets to the namespace where the corresponding BMH is. After upgrade, remove the old Secrets. As a workaround, an operator can configure BMO RBAC to be namespace scoped for Secrets, instead of cluster scoped, to prevent BMO from accessing Secrets from other namespaces.",2024/9/3,2024-09-03T19:15:14Z,2024/9/4,(not available),N/A,过度权限配置,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体为**权限许可和访问控制不当**。由于Bare Metal Operator（BMO）未对跨命名空间的Kubernetes Secrets访问实施有效限制，攻击者可通过构造恶意的`BareMetalHost`（BMH）配置读取其他命名空间的敏感Secret数据。
+
+2. **潜在攻击场景分析**  
+   - **跨命名空间Secret窃取**：拥有BMH创建/编辑权限的攻击者可利用`userData`、`metaData`或`networkData`字段，将其他命名空间中的Secret（如密码、证书）注入到自身控制的BMH配置中。即使目标Secret仅包含`value`键（或特定键名），攻击者仍可提取其内容。
+   - **虚拟主机滥用**：攻击者无需真实物理主机，可通过配置虚拟主机（VM）触发BMO读取敏感Secret，实现数据外泄。
+   - **横向渗透**：若集群中存在多个租户且权限隔离不严格，低权限用户可能窃取高权限命名空间的Secret，扩大攻击影响。
+
+3. **推荐缓解措施**  
+   - **立即升级BMO版本**：应用补丁版本（v0.7.0、v0.6.2、v0.5.2），强制BMH仅读取同命名空间的Secret。
+   - **临时修复方案**：修改BMO的RBAC配置，将其对Secret的访问限制为命名空间级别（非集群级别）。
+   - **迁移与清理Secret**：升级前将BMC相关Secret复制到BMH所在命名空间，升级后删除旧集群级Secret。
+   - **权限最小化**：严格限制非管理员用户对BMH资源的操作权限，遵循最小特权原则。
+
+4. **优先级评估**  
+   **高**。  
+   虽然漏洞利用需攻击者具备BMH操作权限（通常为管理员权限），但在多租户集群或存在非特权用户被意外授权的情况下，可导致敏感数据泄露。跨命名空间的数据隔离失效属于核心安全风险，需紧急修复。",低危,,
+CVE-2024-48921,Kyverno,"Kyverno is a policy engine designed for Kubernetes. A kyverno ClusterPolicy, ie. disallow-privileged-containers  can be overridden by the creation of a PolicyException in a random namespace. By design, PolicyExceptions are consumed from any namespace. Administrators may not recognize that this allows users with privileges to non-kyverno namespaces to create exceptions. This vulnerability is fixed in 1.13.0.",2024/10/29,2024-10-29T15:15:10Z,2024/10/29,2.7,LOW,内部权限失控,"1. **漏洞类型分类或成因**  
+   该漏洞属于**安全逻辑缺陷**，具体原因为权限控制不当。Kyverno的`PolicyException`设计允许从任何命名空间生效，但未严格限制其创建权限。管理员可能未意识到非Kyverno命名空间的用户可通过创建`PolicyException`绕过全局策略（如禁止特权容器），导致策略失效。
+
+2. **潜在攻击场景分析**  
+   - 攻击者拥有在任意命名空间创建资源的权限（如通过RBAC授权）时，可在自身控制的命名空间内创建`PolicyException`，绕过`ClusterPolicy`的限制。  
+   - 例如，通过创建例外允许特权容器，攻击者可在集群中部署恶意容器，获取节点权限或横向渗透。
+
+3. **推荐缓解措施**  
+   - **立即升级**至Kyverno 1.13.0或更高版本。  
+   - **权限最小化**：通过RBAC严格限制`PolicyException`的创建权限，仅允许特定管理员角色操作。  
+   - **审计与监控**：定期检查现有`PolicyException`资源，并配置告警机制检测异常例外策略。  
+   - **策略隔离**：结合Kubernetes的命名空间隔离机制，限制策略例外的影响范围。
+
+4. **优先级评估 (高/中/低)**  
+   **中**。虽然CVSS评分较低（2.7），但实际风险取决于集群权限分配的严格性：  
+   - 若集群中存在广泛命名空间管理权限的用户，漏洞可能被滥用以绕过关键安全策略。  
+   - 需结合企业环境的具体权限配置综合评估，建议优先修复以消除策略绕过的潜在风险。",低危,,
+CVE-2024-56513,Karmada,"Karmada is a Kubernetes management system that allows users to run cloud-native applications across multiple Kubernetes clusters and clouds. Prior to version 1.12.0, the PULL mode clusters registered with the `karmadactl register` command have excessive privileges to access control plane resources. By abusing these permissions, an attacker able to authenticate as the karmada-agent to a karmada cluster would be able to obtain administrative privileges over the entire federation system including all registered member clusters. Since Karmada v1.12.0, command `karmadactl register` restricts the access permissions of pull mode member clusters to control plane resources. This way, an attacker able to authenticate as the karmada-agent cannot control other member clusters in Karmada. As a workaround, one may restrict the access permissions of pull mode member clusters to control plane resources according to Karmada Component Permissions Docs.",2024/11/7,2025-01-03T17:15:08Z,2024/11/20,(not available),N/A,过度权限配置,"1. **漏洞类型分类或成因**  
+   该漏洞属于**权限配置错误**。在Karmada的早期版本中，通过`karmadactl register`命令注册的PULL模式集群被授予了过高的权限（RBAC权限未遵循最小特权原则），导致其能够访问并控制Karmada控制平面资源及其他成员集群。
+
+2. **潜在攻击场景分析**  
+   - 攻击者通过窃取或伪造`karmada-agent`的身份凭证，向Karmada控制平面发起认证。  
+   - 成功认证后，利用过高的权限执行恶意操作（如创建/修改集群资源、窃取敏感数据），甚至横向控制整个联邦系统内的所有成员集群。  
+   - 攻击者可进一步破坏跨集群的应用部署、篡改配置，或通过控制平面发起供应链攻击。
+
+3. **推荐缓解措施**  
+   - **立即升级**至Karmada v1.12.0或更高版本，该版本已修复权限问题。  
+   - **临时缓解**：根据[Karmada组件权限文档](https://karmada.io/docs/developer/component-permissions/)，手动限制PULL模式集群的RBAC权限，移除其对控制平面资源的非必要访问。  
+   - **强化认证**：确保`karmada-agent`的认证凭据（如ServiceAccount Token）严格保密，并定期轮换。  
+   - **审计与监控**：检查现有PULL模式集群的权限配置，并监控控制平面的异常操作日志。
+
+4. **优先级评估**  
+   **高**。该漏洞允许攻击者从单一成员集群权限提升至全局管理权限，可能导致整个联邦系统及所有成员集群被完全控制。在云原生多集群环境中，此类漏洞的横向渗透风险极高，需优先修复。",低危,,
+CVE-2025-2241,Hive,"A flaw was found in Hive, a component of Multicluster Engine (MCE) and Advanced Cluster Management (ACM). This vulnerability causes VCenter credentials to be exposed in the ClusterProvision object after provisioning a VSphere cluster.",2025/6/13,2025-03-17T17:15:40Z,2025/8/29,8.2,HIGH,敏感信息泄露,"1. **漏洞类型分类或成因**  
+   该漏洞属于**敏感数据泄露**，具体原因为**安全逻辑缺陷**。Hive组件在配置VSphere集群后，未能正确保护或清除VCenter凭证，导致其以明文或可逆形式残留在ClusterProvision对象中，可能通过API、日志或存储系统暴露。
+
+2. **潜在攻击场景分析**  
+   - **内部威胁**：已获低权限访问权限的攻击者（如普通用户或服务账户）可通过查询ClusterProvision对象获取VCenter凭证，进而提升权限并接管虚拟化基础设施。  
+   - **横向渗透**：攻击者利用泄露的VCenter凭证访问其他关联集群或虚拟机，实施横向移动或数据窃取。  
+   - **供应链攻击**：若ClusterProvision对象通过集成工具链（如CI/CD日志）暴露，外部攻击者可能通过日志监控或中间件漏洞间接获取凭证。
+
+3. **推荐缓解措施**  
+   - **立即措施**：  
+     - 手动清理现有ClusterProvision对象中的敏感凭证字段。  
+     - 限制对ClusterProvision对象的访问权限（如RBAC策略），仅允许必需的管理角色读取。  
+   - **长期修复**：  
+     - 更新至Hive组件官方修复版本，确保凭证在集群配置完成后自动加密或清除。  
+     - 启用审计日志并监控对ClusterProvision对象的异常访问行为。  
+     - 在代码层实现敏感信息脱敏（如替换为占位符或加密存储）。  
+   - **纵深防御**：  
+     - 对VCenter账户启用多因素认证（MFA）和最小权限原则。  
+     - 定期轮换VCenter凭证，减少泄露后的影响窗口。
+
+4. **优先级评估**  
+   **高优先级**。CVSS 8.2表明该漏洞具备高机密性影响（C:H）和利用可行性（AV:N/AC:L），且VCenter作为关键基础设施组件，其凭证泄露可能导致全域性业务中断或数据泄露，需紧急修复。",低危,,
+CVE-2025-24784,kubewarden-controller ,"kubewarden-controller is a Kubernetes controller that allows you to dynamically register Kubewarden admission policies. The policy group feature, added to by the 1.17.0 release. By being namespaced, the AdmissionPolicyGroup has a well constrained impact on cluster resources. Hence, it??s considered safe to allow non-admin users to create and manage these resources in the namespaces they own. Kubewarden policies can be allowed to query the Kubernetes API at evaluation time; these types of policies are called ??context aware??. Context aware policies can perform list and get operations against a Kubernetes cluster. The queries are done using the ServiceAccount of the Policy Server instance that hosts the policy. That means that access to the cluster is determined by the RBAC rules that apply to that ServiceAccount. The AdmissionPolicyGroup CRD allowed the deployment of context aware policies. This could allow an attacker to obtain information about resources that are out of their reach, by leveraging a higher access to the cluster granted to the ServiceAccount token used to run the policy. The impact of this vulnerability depends on the privileges that have been granted to the ServiceAccount used to run the Policy Server and assumes that users are using the recommended best practices of keeping the Policy Server's ServiceAccount least privileged. By default, the Kubewarden helm chart grants access to the following resources (cluster wide) only: Namespace, Pod, Deployment and Ingress. This vulnerability is fixed in 1.21.0.",2025/1/30,2025-01-30T16:15:31Z,2025/1/29,(not available),N/A,内部权限失控,"1. **漏洞类型分类或成因**  
+   **权限提升/访问控制缺陷**。漏洞成因是安全逻辑设计不当，允许非特权用户通过创建“上下文感知策略”间接利用Policy Server的高权限ServiceAccount访问集群资源。由于AdmissionPolicyGroup CRD未有效约束策略执行时的RBAC权限，导致低权限用户可能绕过自身权限限制，利用ServiceAccount的更高权限进行越权操作。
+
+2. **潜在攻击场景分析**  
+   - 攻击者在拥有命名空间创建权限的情况下，部署恶意上下文感知策略（如关联到Pod创建事件的策略）。  
+   - 当策略被触发时（例如用户创建Pod），策略会以Policy Server的ServiceAccount身份发起Kubernetes API查询（如`list secrets`）。  
+   - 若Policy Server的ServiceAccount具有集群范围的资源访问权限（如Secrets、ConfigMaps等），攻击者可通过策略日志、返回值等途径获取敏感数据，例如其他命名空间的密钥或配置信息。  
+   - 默认情况下，ServiceAccount可访问Namespace、Pod、Deployment和Ingress资源，攻击者可能利用此收集集群拓扑信息，为后续攻击做准备。
+
+3. **推荐缓解措施**  
+   - **立即升级**至kubewarden-controller 1.21.0或更高版本，该版本修复了AdmissionPolicyGroup的权限控制缺陷。  
+   - **遵循最小权限原则**：严格限制Policy Server的ServiceAccount权限，仅授予策略运行必需资源的`get/list`权限，避免集群范围授权。  
+   - **审计现有策略**：检查已部署的上下文感知策略是否涉及敏感操作，移除不必要的API访问权限。  
+   - **启用RBAC监控**：通过Kubernetes审计日志或安全工具（如Falco）监控Policy Server的API调用行为，识别异常查询。  
+
+4. **优先级评估**  
+   **高**。虽然默认配置下ServiceAccount权限受限（仅访问4类资源），但若用户未遵循最小权限原则（如自定义扩展权限），攻击者可利用此漏洞横向移动或窃取关键数据。此外，非管理员用户可直接在命名空间内发起攻击，降低了攻击门槛，需优先修复。",低危,,
+CVE-2025-32445,Argo Events,"Argo Events is an event-driven workflow automation framework for Kubernetes. A user with permission to create/modify EventSource and Sensor custom resources can gain privileged access to the host system and cluster, even without having direct administrative privileges. The EventSource and Sensor CRs allow the corresponding orchestrated pod to be customized with spec.template and spec.template.container (with type k8s.io/api/core/v1.Container), thus, any specification under container such as command, args, securityContext , volumeMount can be specified, and applied to the EventSource or Sensor pod. With these, a user would be able to gain privileged access to the cluster host, if he/she specified the EventSource/Sensor CR with some particular properties under template. This vulnerability is fixed in v1.9.6.",2025/4/14,2025-04-15T20:15:39Z,2025/4/6,(not available),N/A,内部权限失控,"1. **漏洞类型分类或成因**  
+   **安全逻辑缺陷/权限配置错误**：该漏洞源于Argo Events对用户自定义资源（CR）的权限控制不足。攻击者通过创建或修改`EventSource`和`Sensor`自定义资源（CR）时，能够直接指定容器的敏感参数（如`command`、`args`、`securityContext`、`volumeMount`），从而绕过安全限制。系统未对CR中的容器配置进行有效校验或限制，导致攻击者可通过注入恶意配置提权。
+
+2. **潜在攻击场景分析**  
+   - **特权容器逃逸**：攻击者可在CR中设置`securityContext.privileged: true`，使容器以特权模式运行，进而访问宿主机资源（如挂载宿主机根目录或访问内核功能）。  
+   - **恶意命令执行**：通过注入恶意`command`或`args`，可在Pod中执行任意代码（例如反向Shell、安装后门）。  
+   - **敏感文件窃取/篡改**：利用`volumeMount`挂载宿主机敏感路径（如`/var/run/docker.sock`、`/etc/kubernetes`），窃取凭据或修改集群配置。  
+   - **横向移动**：通过控制Pod后，利用服务账号或集群内网络权限攻击其他集群资源。
+
+3. **推荐缓解措施**  
+   - **立即升级**：升级到已修复版本**v1.9.6**及以上。  
+   - **最小权限原则**：通过Kubernetes RBAC严格限制用户对`EventSource`和`Sensor` CR的修改权限，仅授权必要人员。  
+   - **策略强制**：  
+     - 使用**Pod安全策略（PSP）**或**Kubernetes Admission Controller**（如OPA Gatekeeper）禁止危险配置（如`privileged: true`、`hostPath`挂载）。  
+     - 限制容器可使用的`securityContext`参数（如禁止`allowPrivilegeEscalation`）。  
+   - **审计与监控**：记录所有CR修改操作，并监控异常Pod行为（如特权模式启动、敏感路径挂载）。
+
+4. **优先级评估**  
+   **高**：该漏洞允许低权限用户直接控制集群或宿主机，攻击路径明确且危害极大，需立即修复。若攻击者已具备CR修改权限（如通过钓鱼、凭据泄露获取），可快速实现横向渗透或数据泄露。",低危,,
+,,,,,,,,,,,,

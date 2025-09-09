@@ -1,0 +1,9 @@
+[
+  {
+    "CVEID": "CVE-2017-1000056",
+    "临时检测策略": "使用Falco规则监控API服务器日志或Pod创建事件，检测异常PodSecurityPolicy使用。规则示例: rule: 'Unauthorized PSP Usage', condition: kubernetes.pod.security_policy != 'restricted' and not user in ['system:serviceaccount:kube-system:default']",
+    "临时防护/缓解策略": "实施RBAC控制限制PodSecurityPolicy绑定。创建ClusterRoleBinding只允许特定服务账户使用PSP。指令: kubectl create clusterrolebinding psp-restrict --clusterrole=psp-restricted-role --serviceaccount=namespace:sa-name",
+    "优先级": "高",
+    "风险点简述": "PodSecurityPolicy admission plugin中的权限提升漏洞，允许攻击者利用现有PSP对象获得未授权权限。"
+  }
+]

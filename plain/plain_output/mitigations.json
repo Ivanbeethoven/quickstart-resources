@@ -1,0 +1,394 @@
+[
+  {
+    "CVEID": "CVE-2017-1000056",
+    "临时检测策略": "使用Falco规则检测特权Pod创建：- rule: Create Privileged Pod\n  desc: Detect attempts to create a privileged pod\n  condition: kevt and pod and kcreate and privileged=true\n  output: Privileged pod created (user=%ka.user pod=%k8s.pod.name)\n  priority: WARNING",
+    "临时防护/缓解策略": "使用RBAC限制PodSecurityPolicy访问：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restricted-psp-user\nrules:\n- apiGroups: ['policy']\n  resources: ['podsecuritypolicies']\n  verbs: ['use']\n  resourceNames: ['restricted-psp']",
+    "优先级": "高",
+    "风险点简述": "PodSecurityPolicy admission plugin 权限提升，允许滥用现有PSP。"
+  },
+  {
+    "CVEID": "CVE-2018-0268",
+    "临时检测策略": "监控Kubernetes API端口的未授权访问，使用eBPF检测异常连接尝试。",
+    "临时防护/缓解策略": "使用NetworkPolicy限制对Kubernetes服务端口的访问：\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: deny-kube-api-access\n  namespace: kube-system\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - ipBlock:\n        cidr: 10.0.0.0/8",
+    "优先级": "高",
+    "风险点简述": "Kubernetes服务端口未授权访问，导致容器完全妥协。"
+  },
+  {
+    "CVEID": "CVE-2018-1000400",
+    "临时检测策略": "使用Falco规则检测容器中ambient capabilities的设置：- rule: Set Ambient Capabilities\n  desc: Detect setting ambient capabilities in containers\n  condition: container and evt.type=execve and evt.arg contains 'capambient'\n  output: Ambient capabilities set (container=%container.name)",
+    "临时防护/缓解策略": "使用seccomp配置文件或PodSecurityContext限制capabilities：\napiVersion: v1\nkind: Pod\nmetadata:\n  name: restricted-pod\nspec:\n  securityContext:\n    seccompProfile:\n      type: RuntimeDefault\n    capabilities:\n      drop: [\"ALL\"]",
+    "优先级": "高",
+    "风险点简述": "CRI-O处理ambient capabilities错误，导致容器以特权运行。"
+  },
+  {
+    "CVEID": "CVE-2018-5256",
+    "临时检测策略": "监控未认证访问/api/kubernetes/端点的请求，使用日志分析。",
+    "临时防护/缓解策略": "使用Ingress或NetworkPolicy限制对/api/kubernetes/的访问：\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: restrict-tectonic-api\n  namespace: tectonic-system\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - namespaceSelector:\n        matchLabels:\n          role: authorized-namespace",
+    "优先级": "中",
+    "风险点简述": "Tectonic的/api/kubernetes/代理未认证可访问，导致集群暴露。"
+  },
+  {
+    "CVEID": "CVE-2019-10165",
+    "临时检测策略": "审计日志中检查OAuth令牌的明文记录，使用日志监控工具。",
+    "临时防护/缓解策略": "配置API服务器审计策略以避免记录敏感字段：\napiVersion: audit.k8s.io/v1\nkind: Policy\nrules:\n- level: Metadata\n  omitStages:\n  - RequestReceived\n  - ResponseStarted\n  - ResponseComplete\n  resources:\n  - group: \"\"\n    resources: [\"secrets\"]",
+    "优先级": "低",
+    "风险点简述": "OAuth令牌以明文写入审计日志，可能导致令牌泄露。"
+  },
+  {
+    "CVEID": "CVE-2019-11247",
+    "临时检测策略": "监控集群范围自定义资源的命名空间访问，使用审计日志分析。",
+    "临时防护/缓解策略": "使用RBAC限制对集群范围资源的访问：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-cluster-resources\nrules:\n- apiGroups: [\"*\"]\n  resources: [\"*\"]\n  verbs: [\"*\"]\n  resourceNames: [\"specific-resource\"]",
+    "优先级": "高",
+    "风险点简述": "kube-apiserver允许通过命名空间方式访问集群范围资源，导致权限提升。"
+  },
+  {
+    "CVEID": "CVE-2019-3869",
+    "临时检测策略": "监控环境变量中敏感凭证的暴露，使用Falco规则检测。",
+    "临时防护/缓解策略": "使用PodSecurityContext设置环境变量敏感度：\nspec:\n  containers:\n  - name: app\n    env:\n    - name: CREDENTIAL\n      valueFrom:\n        secretKeyRef:\n          name: mysecret\n          key: password\n    securityContext:\n      allowPrivilegeEscalation: false",
+    "优先级": "中",
+    "风险点简述": "Tower在OpenShift/Kubernetes中通过环境变量暴露凭证，导致权限提升。"
+  },
+  {
+    "CVEID": "CVE-2020-15257",
+    "临时检测策略": "使用eBPF监控containerd-shim API套接字的访问，检测异常连接。",
+    "临时防护/缓解策略": "使用AppArmor配置文件限制抽象套接字访问：\nprofile docker-default flags=(attach_disconnected,mediate_deleted) {\n  deny unix addr=@**,\n}",
+    "优先级": "中",
+    "风险点简述": "containerd-shim API暴露给主机网络容器，导致权限提升。"
+  },
+  {
+    "CVEID": "CVE-2020-1742",
+    "临时检测策略": "监控容器内/etc/passwd文件的修改，使用Falco规则：- rule: Modify /etc/passwd\n  desc: Detect modifications to /etc/passwd\n  condition: container and evt.type=chmod or evt.type=write and fd.name contains \"/etc/passwd\"\n  output: /etc/passwd modified (container=%container.name)",
+    "临时防护/缓解策略": "使用只读根文件系统并限制容器权限：\nspec:\n  containers:\n  - name: app\n    securityContext:\n      readOnlyRootFilesystem: true\n      capabilities:\n        drop: [\"ALL\"]",
+    "优先级": "高",
+    "风险点简述": "容器内/etc/passwd被修改，导致权限提升。"
+  },
+  {
+    "CVEID": "CVE-2020-4062",
+    "临时检测策略": "监控Conjur Postgres数据库端口的未授权访问，使用网络流量分析。",
+    "临时防护/缓解策略": "使用NetworkPolicy隔离Conjur命名空间：\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: isolate-conjur-ns\n  namespace: conjur\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\n  - Egress\n  ingress:\n  - from:\n    - podSelector: {}\n  egress:\n  - to:\n    - podSelector: {}",
+    "优先级": "高",
+    "风险点简述": "Conjur Postgres数据库端口开放，导致完全读写访问。"
+  },
+  {
+    "CVEID": "CVE-2020-8559",
+    "临时检测策略": "监控kube-apiserver的代理升级请求，检查重定向验证。",
+    "临时防护/缓解策略": "使用RBAC限制节点对kube-apiserver的访问：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-node-access\nrules:\n- apiGroups: [\"\"]\n  resources: [\"nodes/proxy\"]\n  verbs: [\"create\", \"update\"]",
+    "优先级": "中",
+    "风险点简述": "kube-apiserver未验证代理升级请求的重定向，导致权限提升。"
+  },
+  {
+    "CVEID": "CVE-2021-41254",
+    "临时检测策略": "监控kustomize-controller容器中的shell命令执行，使用Falco规则。",
+    "临时防护/缓解策略": "使用RBAC限制ServiceAccount和Secrets的创建：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-secret-creation\nrules:\n- apiGroups: [\"\"]\n  resources: [\"secrets\"]\n  verbs: [\"create\", \"update\"]\n  resourceNames: [\"allowed-secret\"]",
+    "优先级": "高",
+    "风险点简述": "kustomize-controller允许通过Secret执行shell命令，导致集群管理员权限。"
+  },
+  {
+    "CVEID": "CVE-2021-43858",
+    "临时检测策略": "监控MinIO API策略更新请求，使用日志分析。",
+    "临时防护/缓解策略": "使用RBAC禁用策略更新API：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: deny-minio-policy-update\nrules:\n- apiGroups: [\"minio.io\"]\n  resources: [\"policies\"]\n  verbs: [\"update\"]\n  resourceNames: [\"*\"]",
+    "优先级": "中",
+    "风险点简述": "MinIO API允许恶意客户端更新用户策略，导致权限提升。"
+  },
+  {
+    "CVEID": "CVE-2022-1902",
+    "临时检测策略": "监控GraphQL API中Notifier secrets的访问，使用审计日志。",
+    "临时防护/缓解策略": "使用RBAC限制GraphQL API访问：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-graphql-notifier\nrules:\n- apiGroups: [\"acs.example.com\"]\n  resources: [\"notifiers\"]\n  verbs: [\"get\", \"list\"]",
+    "优先级": "高",
+    "风险点简述": "GraphQL API未正确清理Notifier secrets，导致权限提升。"
+  },
+  {
+    "CVEID": "CVE-2022-21701",
+    "临时检测策略": "监控Istio控制平面的异常行为，使用eBPF检测权限提升尝试。",
+    "临时防护/缓解策略": "使用NetworkPolicy隔离Istio命名空间：\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: istio-namespace-isolation\n  namespace: istio-system\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - namespaceSelector:\n        matchLabels:\n          istio-injection: enabled",
+    "优先级": "高",
+    "风险点简述": "Istio权限提升攻击，可能导致控制平面妥协。"
+  },
+  {
+    "CVEID": "CVE-2022-23652",
+    "临时检测策略": "监控capsule-proxy的Connection头恶意使用，使用日志分析。",
+    "临时防护/缓解策略": "使用Ingress或负载均衡器验证Connection头：\napiVersion: networking.k8s.io/v1\nkind: Ingress\nmetadata:\n  name: capsule-proxy-ingress\n  annotations:\n    nginx.ingress.kubernetes.io/configuration-snippet: |\n      if ($http_connection ~* \"malicious\") {\n        return 403;\n      }",
+    "优先级": "高",
+    "风险点简述": "capsule-proxy允许恶意Connection头导致权限提升。"
+  },
+  {
+    "CVEID": "CVE-2022-24730",
+    "临时检测策略": "监控Argo CD repo-server的敏感文件访问，使用Falco规则。",
+    "临时防护/缓解策略": "使用PodSecurityContext限制文件系统访问：\nspec:\n  containers:\n  - name: repo-server\n    securityContext:\n      readOnlyRootFilesystem: true\n      capabilities:\n        drop: [\"ALL\"]",
+    "优先级": "中",
+    "风险点简述": "Argo CD路径遍历和访问控制错误，导致敏感文件泄露。"
+  },
+  {
+    "CVEID": "CVE-2022-24768",
+    "临时检测策略": "监控Argo CD中的权限提升尝试，使用审计日志分析用户行为。",
+    "临时防护/缓解策略": "使用RBAC严格限制Argo CD管理权限：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: argocd-restricted-admin\nrules:\n- apiGroups: [\"argoproj.io\"]\n  resources: [\"*\"]\n  verbs: [\"*\"]\n  resourceNames: [\"specific-app\"]",
+    "优先级": "高",
+    "风险点简述": "Argo CD不当访问控制，允许用户提升到管理员权限。"
+  },
+  {
+    "CVEID": "CVE-2022-24817",
+    "临时检测策略": "监控Flux2中的恶意Kubeconfig注入，使用eBPF检测命令执行。",
+    "临时防护/缓解策略": "使用PodSecurityContext限制容器权限：\nspec:\n  containers:\n  - name: flux-controller\n    securityContext:\n      allowPrivilegeEscalation: false\n      capabilities:\n        drop: [\"ALL\"]",
+    "优先级": "高",
+    "风险点简述": "Flux2通过恶意Kubeconfig代码注入，导致权限提升。"
+  },
+  {
+    "CVEID": "CVE-2022-24877",
+    "临时检测策略": "监控kustomize-controller的文件系统访问，使用Falco规则检测路径遍历。",
+    "临时防护/缓解策略": "使用只读根文件系统并限制卷挂载：\nspec:\n  containers:\n  - name: kustomize-controller\n    securityContext:\n      readOnlyRootFilesystem: true\n    volumeMounts:\n    - name: temp\n      mountPath: /tmp\n      readOnly: true",
+    "优先级": "高",
+    "风险点简述": "kustomize-controller通过恶意kustomization.yaml路径遍历，暴露敏感数据。"
+  },
+  {
+    "CVEID": "CVE-2022-29165",
+    "临时检测策略": "监控Argo CD中的匿名访问和JWT令牌使用，使用日志分析。",
+    "临时防护/缓解策略": "禁用匿名访问并配置RBAC：\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: argocd-cm\ndata:\n  users.anonymous.enabled: \"false\"",
+    "优先级": "高",
+    "风险点简述": "Argo CD允许未认证用户通过恶意JWT冒充任何用户，导致集群管理员权限。"
+  },
+  {
+    "CVEID": "CVE-2022-29171",
+    "临时检测策略": "监控Sourcegraph gitserver中的命令执行，使用eBPF检测异常进程。",
+    "临时防护/缓解策略": "使用PodSecurityContext限制容器权限：\nspec:\n  containers:\n  - name: gitserver\n    securityContext:\n      allowPrivilegeEscalation: false\n      capabilities:\n        drop: [\"ALL\"]",
+    "优先级": "高",
+    "风险点简述": "Sourcegraph gitserver允许远程代码执行，导致基础设施访问。"
+  },
+  {
+    "CVEID": "CVE-2022-29179",
+    "临时检测策略": "监控Cilium服务账户的异常使用，使用审计日志分析。",
+    "临时防护/缓解策略": "使用RBAC限制Cilium服务账户的权限：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-cilium-sa\nrules:\n- apiGroups: [\"\"]\n  resources: [\"pods\", \"nodes\"]\n  verbs: [\"get\", \"list\"]",
+    "优先级": "高",
+    "风险点简述": "Cilium服务账户被滥用，导致集群管理员权限提升。"
+  },
+  {
+    "CVEID": "CVE-2022-31102",
+    "临时检测策略": "监控Argo CD /auth/callback端点的XSS尝试，使用Web应用防火墙。",
+    "临时防护/缓解策略": "使用Content Security Policy头缓解XSS：\napiVersion: networking.k8s.io/v1\nkind: Ingress\nmetadata:\n  name: argocd-ingress\n  annotations:\n    nginx.ingress.kubernetes.io/server-snippet: |\n      add_header Content-Security-Policy \"default-src 'self';\";",
+    "优先级": "低",
+    "风险点简述": "Argo CD /auth/callback页面XSS，允许注入恶意JavaScript。"
+  },
+  {
+    "CVEID": "CVE-2022-37968",
+    "临时检测策略": "监控Azure Arc集群连接特征的未授权访问，使用网络流量分析。",
+    "临时防护/缓解策略": "使用NetworkPolicy限制集群连接端口的访问：\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: deny-arc-cluster-connect\n  namespace: azure-arc\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - ipBlock:\n        cidr: 10.0.0.0/8",
+    "优先级": "高",
+    "风险点简述": "Azure Arc集群连接允许未认证用户提升权限，获得集群管理控制。"
+  },
+  {
+    "CVEID": "CVE-2022-46167",
+    "临时检测策略": "监控Tenant Namespace中ServiceAccount的PATCH操作，使用审计日志。",
+    "临时防护/缓解策略": "使用RBAC限制ServiceAccount对Namespace的修改：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-namespace-patch\nrules:\n- apiGroups: [\"\"]\n  resources: [\"namespaces\"]\n  verbs: [\"patch\"]\n  resourceNames: [\"specific-namespace\"]",
+    "优先级": "高",
+    "风险点简述": "ServiceAccount可以移除Namespace的Owner Reference，导致多租户绕过。"
+  },
+  {
+    "CVEID": "CVE-2023-22482",
+    "临时检测策略": "监控Argo CD OIDC令牌的aud claim验证，使用日志分析。",
+    "临时防护/缓解策略": "配置Argo CD验证OIDC令牌的audience：\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: argocd-cm\ndata:\n  oidc.config: |\n    name: Keycloak\n    issuer: https://keycloak.example.com/auth/realms/master\n    clientID: argocd\n    requestedAudience: argocd",
+    "优先级": "高",
+    "风险点简述": "Argo CD未验证OIDC令牌的aud claim，接受非预期令牌导致权限提升。"
+  },
+  {
+    "CVEID": "CVE-2023-2250",
+    "临时检测策略": "监控Open Cluster Management worker节点的异常访问，使用eBPF检测。",
+    "临时防护/缓解策略": "使用NetworkPolicy隔离cluster-manager命名空间：\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: restrict-ocm-namespace\n  namespace: open-cluster-management\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - namespaceSelector:\n        matchLabels:\n          purpose: management",
+    "优先级": "中",
+    "风险点简述": "Open Cluster Management worker节点访问导致权限提升。"
+  },
+  {
+    "CVEID": "CVE-2023-22645",
+    "临时检测策略": "监控kubewarden-controller ServiceAccount的secrets访问，使用审计日志。",
+    "临时防护/缓解策略": "使用RBAC限制kubewarden-controller的secrets访问：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-kubewarden-secrets\nrules:\n- apiGroups: [\"\"]\n  resources: [\"secrets\"]\n  verbs: [\"get\", \"list\"]\n  resourceNames: [\"allowed-secret\"]",
+    "优先级": "高",
+    "风险点简述": "kubewarden-controller ServiceAccount允许读取任意secrets，导致信息泄露。"
+  },
+  {
+    "CVEID": "CVE-2023-22651",
+    "临时检测策略": "监控Rancher admission Webhook的更新逻辑，使用日志分析。",
+    "临时防护/缓解策略": "使用RBAC限制Webhook配置修改：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-webhook-update\nrules:\n- apiGroups: [\"admissionregistration.k8s.io\"]\n  resources: [\"mutatingwebhookconfigurations\", \"validatingwebhookconfigurations\"]\n  verbs: [\"update\"]",
+    "优先级": "高",
+    "风险点简述": "Rancher admission Webhook更新逻辑错误，导致权限提升。"
+  },
+  {
+    "CVEID": "CVE-2023-23947",
+    "临时检测策略": "监控Argo CD集群secrets的更新操作，使用审计日志。",
+    "临时防护/缓解策略": "使用RBAC限制集群secrets更新权限：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-cluster-secrets\nrules:\n- apiGroups: [\"argoproj.io\"]\n  resources: [\"clusters\"]\n  verbs: [\"update\"]\n  resourceNames: [\"specific-cluster\"]",
+    "优先级": "高",
+    "风险点简述": "Argo CD允许用户更新任意集群secret，导致权限提升或功能中断。"
+  },
+  {
+    "CVEID": "CVE-2023-26484",
+    "临时检测策略": "监控virt-handler服务账户的节点修改，使用审计日志分析。",
+    "临时防护/缓解策略": "使用RBAC限制virt-handler服务账户的节点修改：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-virt-handler-nodes\nrules:\n- apiGroups: [\"\"]\n  resources: [\"nodes\"]\n  verbs: [\"patch\", \"update\"]",
+    "优先级": "高",
+    "风险点简述": "KubeVirt virt-handler服务账户可以修改节点spec，导致集群权限提升。"
+  },
+  {
+    "CVEID": "CVE-2023-29018",
+    "临时检测策略": "监控open-feature-operator-controller-manager的权限使用，使用审计日志。",
+    "临时防护/缓解策略": "使用RBAC限制open-feature-operator-controller-manager的权限：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-openfeature-operator\nrules:\n- apiGroups: [\"\"]\n  resources: [\"pods\", \"services\"]\n  verbs: [\"get\", \"list\"]",
+    "优先级": "高",
+    "风险点简述": "OpenFeature Operator权限过松，允许权限提升。"
+  },
+  {
+    "CVEID": "CVE-2023-30512",
+    "临时检测策略": "监控CubeFS DaemonSet的secrets访问，使用审计日志分析。",
+    "临时防护/缓解策略": "使用RBAC限制DaemonSet服务账户的secrets访问：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-cubefs-secrets\nrules:\n- apiGroups: [\"\"]\n  resources: [\"secrets\"]\n  verbs: [\"get\", \"list\"]\n  resourceNames: [\"allowed-secret\"]",
+    "优先级": "中",
+    "风险点简述": "CubeFS DaemonSet可以列出所有secrets，导致权限提升。"
+  },
+  {
+    "CVEID": "CVE-2023-30617",
+    "临时检测策略": "监控kruise-daemon的secrets访问，使用审计日志。",
+    "临时防护/缓解策略": "使用RBAC限制kruise-daemon的secrets访问：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-kruise-daemon-secrets\nrules:\n- apiGroups: [\"\"]\n  resources: [\"secrets\"]\n  verbs: [\"get\", \"list\"]\n  resourceNames: [\"allowed-secret\"]",
+    "优先级": "中",
+    "风险点简述": "Kruise kruise-daemon可以列出集群所有secrets，导致权限提升。"
+  },
+  {
+    "CVEID": "CVE-2023-30622",
+    "临时检测策略": "监控Clusternet中的特权提升尝试，使用eBPF检测。",
+    "临时防护/缓解策略": "使用RBAC限制Clusternet服务账户的权限：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-clusternet-sa\nrules:\n- apiGroups: [\"*\"]\n  resources: [\"*\"]\n  verbs: [\"get\", \"list\"]",
+    "优先级": "高",
+    "风险点简述": "Clusternet允许集群级别权限提升。"
+  },
+  {
+    "CVEID": "CVE-2023-30840",
+    "临时检测策略": "监控fluid-csi服务账户的节点修改，使用审计日志。",
+    "临时防护/缓解策略": "使用RBAC限制fluid-csi服务账户的节点修改：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-fluid-csi-nodes\nrules:\n- apiGroups: [\"\"]\n  resources: [\"nodes\"]\n  verbs: [\"patch\", \"update\"]",
+    "优先级": "高",
+    "风险点简述": "Fluid fluid-csi服务账户可以修改节点spec，导致集群权限提升。"
+  },
+  {
+    "CVEID": "CVE-2023-3676",
+    "临时检测策略": "监控Windows节点上的特权Pod创建，使用Falco规则。",
+    "临时防护/缓解策略": "使用PodSecurityContext限制Windows容器权限：\nspec:\n  containers:\n  - name: windows-app\n    securityContext:\n      windowsOptions:\n        runAsUserName: \"ContainerUser\"\n      allowPrivilegeEscalation: false",
+    "优先级": "高",
+    "风险点简述": "Kubernetes Windows节点允许Pod创建者提升到管理员权限。"
+  },
+  {
+    "CVEID": "CVE-2023-3893",
+    "临时检测策略": "监控Windows节点上kubernetes-csi-proxy的访问，使用网络流量分析。",
+    "临时防护/缓解策略": "使用NetworkPolicy限制对kubernetes-csi-proxy的访问：\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: restrict-csi-proxy\n  namespace: kube-system\nspec:\n  podSelector:\n    matchLabels:\n      app: kubernetes-csi-proxy\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - ipBlock:\n        cidr: 10.0.0.0/8",
+    "优先级": "高",
+    "风险点简述": "Windows节点上kubernetes-csi-proxy允许权限提升。"
+  },
+  {
+    "CVEID": "CVE-2023-3955",
+    "临时检测策略": "监控Windows节点上的特权Pod创建，使用Falco规则。",
+    "临时防护/缓解策略": "使用PodSecurityContext限制Windows容器权限：\nspec:\n  containers:\n  - name: windows-app\n    securityContext:\n      windowsOptions:\n        runAsUserName: \"ContainerUser\"\n      allowPrivilegeEscalation: false",
+    "优先级": "高",
+    "风险点简述": "Kubernetes Windows节点允许Pod创建者提升到管理员权限。"
+  },
+  {
+    "CVEID": "CVE-2023-46254",
+    "临时检测策略": "监控capsule-proxy的RoleBinding反射器，使用日志分析。",
+    "临时防护/缓解策略": "使用RBAC限制ServiceAccount的Namespace列表权限：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-namespace-list\nrules:\n- apiGroups: [\"\"]\n  resources: [\"namespaces\"]\n  verbs: [\"list\"]\n  resourceNames: [\"allowed-namespace\"]",
+    "优先级": "低",
+    "风险点简述": "capsule-proxy RoleBinding反射器允许列出其他租户的Namespace。"
+  },
+  {
+    "CVEID": "CVE-2023-48312",
+    "临时检测策略": "监控capsule-proxy的TokenReview结果验证，使用日志分析。",
+    "临时防护/缓解策略": "配置capsule-proxy强制验证TokenReview认证：\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: capsule-proxy-config\ndata:\n  config.yaml: |\n    enableTokenReview: true\n    requireAuthentication: true",
+    "优先级": "高",
+    "风险点简述": "capsule-proxy未检查TokenReview结果是否认证，导致权限提升。"
+  },
+  {
+    "CVEID": "CVE-2023-50726",
+    "临时检测策略": "监控Argo CD本地manifest同步，使用审计日志分析。",
+    "临时防护/缓解策略": "使用RBAC限制应用程序创建权限：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-argocd-app-create\nrules:\n- apiGroups: [\"argoproj.io\"]\n  resources: [\"applications\"]\n  verbs: [\"create\"]",
+    "优先级": "中",
+    "风险点简述": "Argo CD本地同步功能允许绕过git保护，同步本地manifest。"
+  },
+  {
+    "CVEID": "CVE-2023-5408",
+    "临时检测策略": "监控Kubernetes API服务器节点角色标签修改，使用审计日志。",
+    "临时防护/缓解策略": "使用RBAC限制节点标签修改：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-node-label-update\nrules:\n- apiGroups: [\"\"]\n  resources: [\"nodes\"]\n  verbs: [\"patch\", \"update\"]\n  resourceNames: [\"specific-node\"]",
+    "优先级": "高",
+    "风险点简述": "OpenShift节点限制admission plugin允许节点角色标签修改，导致权限提升。"
+  },
+  {
+    "CVEID": "CVE-2023-5528",
+    "临时检测策略": "监控Windows节点上的持久卷创建，使用Falco规则。",
+    "临时防护/缓解策略": "使用PodSecurityContext限制Windows容器权限：\nspec:\n  containers:\n  - name: windows-app\n    securityContext:\n      windowsOptions:\n        runAsUserName: \"ContainerUser\"\n      allowPrivilegeEscalation: false",
+    "优先级": "高",
+    "风险点简述": "Kubernetes Windows节点允许通过持久卷创建提升到管理员权限。"
+  },
+  {
+    "CVEID": "CVE-2024-31989",
+    "临时检测策略": "监控Redis服务器端口的跨命名空间连接，使用网络策略。",
+    "临时防护/缓解策略": "使用NetworkPolicy限制Redis服务器访问：\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: restrict-redis-access\n  namespace: argocd\nspec:\n  podSelector:\n    matchLabels:\n      app: redis\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - podSelector:\n        matchLabels:\n          app: argocd-server",
+    "优先级": "高",
+    "风险点简述": "Argo CD Redis服务器允许跨命名空间连接，导致未授权访问。"
+  },
+  {
+    "CVEID": "CVE-2024-33522",
+    "临时检测策略": "监控Calico CNI安装二进制的SUID滥用，使用eBPF检测。",
+    "临时防护/缓解策略": "移除Calico CNI二进制的SUID位：\nchmod u-s /opt/cni/bin/calico",
+    "优先级": "高",
+    "风险点简述": "Calico CNI安装二进制SUID配置错误，允许本地权限提升。"
+  },
+  {
+    "CVEID": "CVE-2024-40628",
+    "临时检测策略": "监控JumpServer celery容器中的文件读取，使用Falco规则。",
+    "临时防护/缓解策略": "使用PodSecurityContext限制容器文件系统访问：\nspec:\n  containers:\n  - name: celery\n    securityContext:\n      readOnlyRootFilesystem: true\n      capabilities:\n        drop: [\"ALL\"]",
+    "优先级": "高",
+    "风险点简述": "JumpServer Ansible playbook允许读取任意文件，导致敏感信息泄露。"
+  },
+  {
+    "CVEID": "CVE-2024-40629",
+    "临时检测策略": "监控JumpServer celery容器中的文件写入，使用Falco规则。",
+    "临时防护/缓解策略": "使用PodSecurityContext限制容器文件系统写入：\nspec:\n  containers:\n  - name: celery\n    securityContext:\n      readOnlyRootFilesystem: true\n      capabilities:\n        drop: [\"ALL\"]",
+    "优先级": "高",
+    "风险点简述": "JumpServer Ansible playbook允许写入任意文件，导致远程代码执行。"
+  },
+  {
+    "CVEID": "CVE-2024-43403",
+    "临时检测策略": "监控kanister-operator的ClusterRole使用，使用审计日志。",
+    "临时防护/缓解策略": "使用RBAC限制kanister-operator的权限：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-kanister-operator\nrules:\n- apiGroups: [\"\"]\n  resources: [\"pods\", \"secrets\"]\n  verbs: [\"get\", \"list\"]",
+    "优先级": "中",
+    "风险点简述": "Kanister default-kanister-operator绑定edit ClusterRole，权限过宽。"
+  },
+  {
+    "CVEID": "CVE-2024-43803",
+    "临时检测策略": "监控BareMetalHost的Secret引用，使用审计日志分析。",
+    "临时防护/缓解策略": "使用RBAC限制BareMetalHost创建和修改：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-bmh-creation\nrules:\n- apiGroups: [\"metal3.io\"]\n  resources: [\"baremetalhosts\"]\n  verbs: [\"create\", \"update\"]",
+    "优先级": "中",
+    "风险点简述": "BareMetalHost允许从任何命名空间读取Secret，导致信息泄露。"
+  },
+  {
+    "CVEID": "CVE-2024-48921",
+    "临时检测策略": "监控Kyverno PolicyException的创建，使用审计日志。",
+    "临时防护/缓解策略": "使用RBAC限制PolicyException创建：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-policy-exception\nrules:\n- apiGroups: [\"kyverno.io\"]\n  resources: [\"policyexceptions\"]\n  verbs: [\"create\", \"update\"]",
+    "优先级": "低",
+    "风险点简述": "Kyverno PolicyException可以从任何命名空间创建，覆盖ClusterPolicy。"
+  },
+  {
+    "CVEID": "CVE-2024-56513",
+    "临时检测策略": "监控Karmada pull模式集群的控制平面资源访问，使用审计日志。",
+    "临时防护/缓解策略": "使用RBAC限制karmada-agent的权限：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-karmada-agent\nrules:\n- apiGroups: [\"*\"]\n  resources: [\"*\"]\n  verbs: [\"get\", \"list\"]",
+    "优先级": "高",
+    "风险点简述": "Karmada pull模式集群有过量权限访问控制平面资源，导致联邦系统妥协。"
+  },
+  {
+    "CVEID": "CVE-2025-2241",
+    "临时检测策略": "监控Hive ClusterProvision对象中的VCenter凭证暴露，使用日志分析。",
+    "临时防护/缓解策略": "使用RBAC限制ClusterProvision访问：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-cluster-provision\nrules:\n- apiGroups: [\"hive.openshift.io\"]\n  resources: [\"clusterprovisions\"]\n  verbs: [\"get\", \"list\"]",
+    "优先级": "中",
+    "风险点简述": "Hive在ClusterProvision对象中暴露VCenter凭证，导致信息泄露。"
+  },
+  {
+    "CVEID": "CVE-2025-24784",
+    "临时检测策略": "监控kubewarden-controller的上下文感知策略使用，使用审计日志。",
+    "临时防护/缓解策略": "使用RBAC限制Policy Server服务账户的权限：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-policy-server-sa\nrules:\n- apiGroups: [\"\"]\n  resources: [\"namespaces\", \"pods\"]\n  verbs: [\"get\", \"list\"]",
+    "优先级": "中",
+    "风险点简述": "kubewarden-controller AdmissionPolicyGroup允许上下文感知策略，导致信息泄露。"
+  },
+  {
+    "CVEID": "CVE-2025-32445",
+    "临时检测策略": "监控Argo Events EventSource和Sensor CR的修改，使用审计日志。",
+    "临时防护/缓解策略": "使用RBAC限制EventSource和Sensor CR的创建：\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: restrict-argoevents-cr\nrules:\n- apiGroups: [\"argoproj.io\"]\n  resources: [\"eventsources\", \"sensors\"]\n  verbs: [\"create\", \"update\"]",
+    "优先级": "高",
+    "风险点简述": "Argo Events EventSource和Sensor CR允许pod定制，导致主机系统特权访问。"
+  }
+]
