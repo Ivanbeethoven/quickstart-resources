@@ -13,3 +13,5 @@ wheels/
 # Virtual environments
 .venv
 openai.key
+kb_new
+

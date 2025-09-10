@@ -1,1 +1,0 @@
-{"namespace":"default","service_accounts":["app-sa"],"roles":{"app-role":{"rules":[{"resources":["pods"],"verbs":["get","list","watch","create","delete"]}]}},"deployments":{"app":{"spec":{"template":{"spec":{"containers":[{"name":"c1","image":"x","securityContext":{}}]}}}}}}

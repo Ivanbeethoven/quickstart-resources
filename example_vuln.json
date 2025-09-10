@@ -1,1 +1,0 @@
-{"cve":"CVE-TEST-001","component":"TestComp","description":"Privilege escalation via excessive capabilities allowing container escape","severity":"HIGH"}
